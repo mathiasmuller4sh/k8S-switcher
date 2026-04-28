@@ -1,9 +1,9 @@
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::Manager;
 use std::process::Command;
 use kube::{config::Kubeconfig, config::KubeConfigOptions, Config, Client, Api};
-use k8s_openapi::api::core::v1::{Namespace, Pod, Service};
-use serde::{Deserialize, Serialize};
+use k8s_openapi::api::core::v1::{Namespace, Pod};
+use serde::Serialize;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -228,8 +228,8 @@ async fn get_pod_metrics(context: String, namespace: String, pod_name: String) -
     let lines: Vec<&str> = stdout.lines().collect();
     
     let mut containers = std::collections::HashMap::new();
-    let mut total_cpu = 0.0;
-    let mut total_memory = 0.0;
+    let total_cpu = 0.0;
+    let total_memory = 0.0;
 
     for line in lines {
         let parts: Vec<&str> = line.split_whitespace().collect();
