@@ -1,4 +1,3 @@
-import React from 'react';
 import { useKubeContexts } from '../../hooks/useKubeContexts';
 import { SelectDropdown } from '../ui/SelectDropdown';
 import { SelectionList } from '../ui/SelectionList';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { LogsButton } from './LogsButton';
 import { PortForwardButton } from './PortForwardButton';

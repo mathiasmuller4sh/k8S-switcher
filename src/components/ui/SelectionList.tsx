@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Star, Search } from 'lucide-react';
 import { SelectOption } from './SelectDropdown';
 

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function K8sLogo({ size = 24, className = '' }: { size?: number, className?: string }) {
   return (
     <svg 

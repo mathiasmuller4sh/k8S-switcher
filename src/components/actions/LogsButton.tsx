@@ -1,4 +1,3 @@
-import React from 'react';
 import { TerminalSquare } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { invoke } from '@tauri-apps/api/core';

@@ -51,12 +51,6 @@ function App() {
     }
   };
 
-  const handleReset = () => {
-    setSelectedContext("");
-    setSelectedNamespace("");
-    setSelectedPod(null);
-  };
-
   const isContextSelected = selectedContext !== "";
   const isNamespaceSelected = selectedNamespace !== "";
 

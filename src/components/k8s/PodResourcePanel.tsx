@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Cpu, MemoryStick, RefreshCw, Activity, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { ContainerResources } from '../../hooks/useKubePods';

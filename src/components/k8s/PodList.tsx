@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Pod, useKubePods } from '../../hooks/useKubePods';
 import { ChevronDown, ChevronUp, Box } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';

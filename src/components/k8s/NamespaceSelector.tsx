@@ -1,4 +1,3 @@
-import React from 'react';
 import { useKubeNamespaces } from '../../hooks/useKubeNamespaces';
 import { SelectDropdown } from '../ui/SelectDropdown';
 import { SelectionList } from '../ui/SelectionList';
