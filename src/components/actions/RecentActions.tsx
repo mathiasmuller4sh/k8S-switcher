@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TerminalSquare, Terminal, Plug, Play, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { TerminalSquare, Terminal, Plug, Play, Trash2, FileText, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useActionHistory, ActionRecord } from '../../hooks/useActionHistory';
 import { invoke } from '@tauri-apps/api/core';
 import { Card, CardContent, CardHeader } from '../ui/Card';
@@ -74,6 +74,7 @@ export function RecentActions({ isContextSelected }: RecentActionsProps) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          <History size={14} className="text-primary" />
           <span className="ui-action-title">Recent Actions ({history.length})</span>
         </div>
         <button 

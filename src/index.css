@@ -64,8 +64,14 @@ body {
 
 .selector-group {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
+  gap: 8px;
+  width: 100%;
+}
+
+.selector-group > * {
+  flex: 1;
+  min-width: 0;
 }
 
 /* UI Components */
@@ -601,18 +607,40 @@ body {
   gap: 6px;
 }
 
-.pod-resource-header {
+.pod-resource-panel .pod-resource-header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pod-resource-header-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
 }
 
 .pod-resource-title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.pod-resource-panel.collapsed .ui-card-header {
+  border-bottom: none;
+}
+
+.ui-pod-list-card .ui-card-header {
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s;
+}
+
+.ui-pod-list-card.collapsed .ui-card-header {
+  border-bottom: none;
+}
+
+.ui-pod-list-card .ui-card-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .pod-resource-refresh {
@@ -774,8 +802,17 @@ body {
 .pod-resource-usage-value {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-width: 60px;
+  gap: 6px;
+  min-width: 100px;
+}
+
+.pod-resource-max {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .ui-recent-actions-header {

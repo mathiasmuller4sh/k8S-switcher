@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pod, useKubePods } from '../../hooks/useKubePods';
+import { ChevronDown, ChevronUp, Box } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '../ui/Card';
 
 interface PodListProps {
   context: string;
@@ -18,6 +20,7 @@ function shortImage(image: string): string {
 
 export function PodList({ context, namespace, selectedPod, onSelectPod }: PodListProps) {
   const { pods, loading } = useKubePods(context, namespace);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -32,34 +35,51 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
   }
 
   return (
-    <div className="ui-pod-list">
-      <div className="ui-pod-list-header">
-        <span>Name</span>
-        <span style={{ textAlign: 'right' }}>Age</span>
-        <span style={{ textAlign: 'center' }}>Status</span>
-      </div>
-      <div className="ui-pod-list-content">
-        {pods.map((pod) => (
-          <div
-            key={pod.name}
-            className={`ui-pod-item ${selectedPod === pod.name ? 'selected' : ''}`}
-            onClick={() => onSelectPod(pod)}
-          >
-            <div className="ui-pod-name-block">
-              <span className="ui-pod-name" title={pod.name}>{pod.name}</span>
-              {pod.image && (
-                <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
-              )}
+    <Card className={`ui-pod-list-card ${isCollapsed ? 'collapsed' : ''}`}>
+      <CardHeader 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          <Box size={14} className="text-primary" />
+          <span className="ui-action-title">Pods in {namespace} ({pods.length})</span>
+        </div>
+      </CardHeader>
+      
+      {!isCollapsed && (
+        <CardContent style={{ padding: 0 }}>
+          <div className="ui-pod-list">
+            <div className="ui-pod-list-header">
+              <span>Name</span>
+              <span style={{ textAlign: 'right' }}>Age</span>
+              <span style={{ textAlign: 'center' }}>Status</span>
             </div>
-            <span className="ui-pod-age" style={{ textAlign: 'right' }}>{pod.age}</span>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <span className={`ui-pod-status status-${pod.status.toLowerCase()}`}>
-                {pod.status}
-              </span>
+            <div className="ui-pod-list-content" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              {pods.map((pod) => (
+                <div
+                  key={pod.name}
+                  className={`ui-pod-item ${selectedPod === pod.name ? 'selected' : ''}`}
+                  onClick={() => onSelectPod(pod)}
+                >
+                  <div className="ui-pod-name-block">
+                    <span className="ui-pod-name" title={pod.name}>{pod.name}</span>
+                    {pod.image && (
+                      <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
+                    )}
+                  </div>
+                  <span className="ui-pod-age" style={{ textAlign: 'right' }}>{pod.age}</span>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <span className={`ui-pod-status status-${pod.status.toLowerCase()}`}>
+                      {pod.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
+        </CardContent>
+      )}
+    </Card>
   );
 }

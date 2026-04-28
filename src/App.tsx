@@ -121,17 +121,17 @@ function App() {
 
         {isContextSelected && isNamespaceSelected && selectedPod && (
           <>
-            <ActionPanel
-              context={selectedContext}
-              namespace={selectedNamespace}
-              podName={selectedPod.name}
-              podPorts={selectedPod.ports}
-            />
             <PodResourcePanel
               context={selectedContext}
               namespace={selectedNamespace}
               podName={selectedPod.name}
               containers={selectedPod.containers}
+            />
+            <ActionPanel
+              context={selectedContext}
+              namespace={selectedNamespace}
+              podName={selectedPod.name}
+              podPorts={selectedPod.ports}
             />
           </>
         )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { LogsButton } from './LogsButton';
 import { PortForwardButton } from './PortForwardButton';
 import { ShellButton } from './ShellButton';
@@ -28,6 +28,7 @@ export function ActionPanel({ context, namespace, podName, podPorts }: ActionPan
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          <Zap size={14} className="text-primary" />
           <span className="ui-action-title">Actions for {podName}</span>
         </div>
       </CardHeader>
