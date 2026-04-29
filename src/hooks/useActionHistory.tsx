@@ -45,9 +45,13 @@ export function ActionHistoryProvider({ children }: { children: React.ReactNode 
   }, [history]);
 
   const addAction = (action: Omit<ActionRecord, 'id' | 'timestamp'>) => {
+    const id = typeof crypto.randomUUID === 'function' 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
     const newRecord: ActionRecord = {
       ...action,
-      id: crypto.randomUUID(),
+      id,
       timestamp: Date.now()
     };
 
@@ -61,6 +65,7 @@ export function ActionHistoryProvider({ children }: { children: React.ReactNode 
   };
 
   const removeAction = (id: string) => {
+    console.log('Removing action:', id);
     setHistory(prev => prev.filter(record => record.id !== id));
   };
 

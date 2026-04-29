@@ -442,11 +442,36 @@ body {
   display: grid;
   grid-template-columns: 1fr 60px 100px;
   gap: 16px;
-  align-items: center;
+  align-items: start; /* Changed to start to allow for multiline labels */
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.ui-pod-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ui-pod-label-badge {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-pod-item.selected .ui-pod-label-badge {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 .ui-pod-item:hover {
@@ -590,7 +615,7 @@ body {
 
 /* Recent Actions */
 .ui-recent-actions {
-  flexShrink: 0;
+  flex-shrink: 0;
   max-height: 180px;
   display: flex;
   flex-direction: column;
@@ -641,6 +666,36 @@ body {
 
 .ui-pod-list-card .ui-card-header:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+.ui-header-action-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.ui-header-action-btn:hover {
+  color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--primary);
+}
+
+.ui-header-action-btn.active {
+  color: #fbbf24;
+  background-color: rgba(251, 191, 36, 0.1);
+  border-color: #fbbf24;
+}
+
+.ui-header-action-btn.spinning svg {
+  animation: spin 1s linear infinite;
 }
 
 .pod-resource-refresh {

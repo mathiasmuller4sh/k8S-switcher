@@ -16,32 +16,46 @@ export interface Pod {
   image: string;
   ports: number[];
   containers: ContainerResources[];
+  labels: Record<string, string>;
 }
 
 export function useKubePods(context: string, namespace: string) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [loading, setLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
-  useEffect(() => {
+  const fetchPods = async (showLoading = true) => {
     if (!context || !namespace) {
       setPods([]);
       return;
     }
 
-    const fetchPods = async () => {
-      setLoading(true);
-      try {
-        const result = await invoke<Pod[]>('get_pods', { context, namespace });
-        setPods(result);
-      } catch (error) {
-        console.error('Failed to fetch pods', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (showLoading) setLoading(true);
+    try {
+      const result = await invoke<Pod[]>('get_pods', { context, namespace });
+      setPods(result);
+    } catch (error) {
+      console.error('Failed to fetch pods', error);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPods();
   }, [context, namespace]);
 
-  return { pods, loading };
+  useEffect(() => {
+    let interval: any;
+    if (autoRefresh && context && namespace) {
+      interval = setInterval(() => {
+        fetchPods(false);
+      }, 5000); // 5 seconds polling
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh, context, namespace]);
+
+  return { pods, loading, refresh: () => fetchPods(true), autoRefresh, setAutoRefresh };
 }

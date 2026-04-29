@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pod, useKubePods } from '../../hooks/useKubePods';
-import { ChevronDown, ChevronUp, Box } from 'lucide-react';
+import { ChevronDown, ChevronUp, Box, RefreshCw, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
 interface PodListProps {
@@ -19,7 +19,7 @@ function shortImage(image: string): string {
 }
 
 export function PodList({ context, namespace, selectedPod, onSelectPod }: PodListProps) {
-  const { pods, loading } = useKubePods(context, namespace);
+  const { pods, loading, refresh, autoRefresh, setAutoRefresh } = useKubePods(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!context || !namespace) {
@@ -45,6 +45,24 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
           <Box size={14} className="text-primary" />
           <span className="ui-action-title">Pods in {namespace} ({pods.length})</span>
         </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+          <button 
+            className={`ui-header-action-btn ${loading ? 'spinning' : ''}`}
+            onClick={refresh}
+            title="Refresh pods"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button 
+            className={`ui-header-action-btn ${autoRefresh ? 'active' : ''}`}
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            title={autoRefresh ? "Disable Live Reload" : "Enable Live Reload"}
+          >
+            <Zap size={14} fill={autoRefresh ? "currentColor" : "none"} />
+            <span style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>LIVE</span>
+          </button>
+        </div>
       </CardHeader>
       
       {!isCollapsed && (
@@ -64,9 +82,21 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
                 >
                   <div className="ui-pod-name-block">
                     <span className="ui-pod-name" title={pod.name}>{pod.name}</span>
-                    {pod.image && (
-                      <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {pod.image && (
+                        <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
+                      )}
+                      <div className="ui-pod-labels">
+                        {Object.entries(pod.labels || {})
+                          .filter(([key]) => !['pod-template-hash', 'controller-revision-hash', 'statefulset.kubernetes.io/pod-name'].some(ignored => key.includes(ignored)))
+                          .slice(0, 3) // Limit to 3 most important labels
+                          .map(([key, value]) => (
+                            <span key={key} className="ui-pod-label-badge" title={`${key}=${value}`}>
+                              {value}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
                   </div>
                   <span className="ui-pod-age" style={{ textAlign: 'right' }}>{pod.age}</span>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>

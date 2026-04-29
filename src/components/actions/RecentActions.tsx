@@ -3,6 +3,7 @@ import { TerminalSquare, Terminal, Plug, Play, Trash2, FileText, ChevronDown, Ch
 import { useActionHistory, ActionRecord } from '../../hooks/useActionHistory';
 import { invoke } from '@tauri-apps/api/core';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { ask } from '@tauri-apps/plugin-dialog';
 
 interface RecentActionsProps {
   isContextSelected: boolean;
@@ -43,9 +44,14 @@ export function RecentActions({ isContextSelected }: RecentActionsProps) {
     }
   };
 
-  const handleRemove = (e: React.MouseEvent, id: string) => {
+  const handleRemove = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (window.confirm('Voulez-vous vraiment supprimer cette action ?')) {
+    const confirmed = await ask('Voulez-vous vraiment supprimer cette action ?', {
+      title: 'K8s Switcher',
+      kind: 'warning',
+    });
+    
+    if (confirmed) {
       removeAction(id);
     }
   };

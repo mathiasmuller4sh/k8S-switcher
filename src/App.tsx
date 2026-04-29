@@ -126,6 +126,7 @@ function App() {
               namespace={selectedNamespace}
               podName={selectedPod.name}
               podPorts={selectedPod.ports}
+              podLabels={selectedPod.labels}
             />
           </>
         )}

@@ -4,6 +4,8 @@ import { LogsButton } from './LogsButton';
 import { PortForwardButton } from './PortForwardButton';
 import { ShellButton } from './ShellButton';
 import { DescribeButton } from './DescribeButton';
+import { RolloutRestartButton } from './RolloutRestartButton';
+import { AppLogsButton } from './AppLogsButton';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
 interface ActionPanelProps {
@@ -11,9 +13,10 @@ interface ActionPanelProps {
   namespace: string;
   podName: string;
   podPorts: number[];
+  podLabels: Record<string, string>;
 }
 
-export function ActionPanel({ context, namespace, podName, podPorts }: ActionPanelProps) {
+export function ActionPanel({ context, namespace, podName, podPorts, podLabels }: ActionPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!podName || !context || !namespace) {
@@ -35,8 +38,12 @@ export function ActionPanel({ context, namespace, podName, podPorts }: ActionPan
       {!isCollapsed && (
         <CardContent className="ui-action-buttons">
           <DescribeButton context={context} namespace={namespace} podName={podName} />
-          <LogsButton context={context} namespace={namespace} podName={podName} />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <LogsButton context={context} namespace={namespace} podName={podName} />
+            <AppLogsButton context={context} namespace={namespace} labels={podLabels} />
+          </div>
           <ShellButton context={context} namespace={namespace} podName={podName} />
+          <RolloutRestartButton context={context} namespace={namespace} podName={podName} />
           <PortForwardButton context={context} namespace={namespace} podName={podName} podPorts={podPorts} />
         </CardContent>
       )}
