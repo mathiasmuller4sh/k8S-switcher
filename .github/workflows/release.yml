@@ -37,7 +37,7 @@ jobs:
       - name: Get DMG path
         id: get_dmg
         run: |
-          DMG_PATH=$(find src-tauri/target/release/bundle/macos -name "*.dmg" | head -n 1)
+          DMG_PATH=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -n 1)
           echo "DMG_PATH=${DMG_PATH}" >> $GITHUB_OUTPUT
           DMG_NAME=$(basename "${DMG_PATH}")
           echo "DMG_NAME=${DMG_NAME}" >> $GITHUB_OUTPUT
