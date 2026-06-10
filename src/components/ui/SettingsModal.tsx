@@ -1,5 +1,6 @@
-import { X, Terminal } from 'lucide-react';
+import { X, Terminal, Info, RefreshCw, DownloadCloud, Check } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
+import { useAutoUpdate } from '../../hooks/useAutoUpdate';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -7,6 +8,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const { settings, updateSettings } = useSettings();
+  const { updateInfo, isChecking, checkForUpdates, applyUpdate, isUpdating, updateSuccess, updateError } = useAutoUpdate();
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -21,7 +23,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
         
-        <div className="modal-body">
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="settings-section">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Terminal size={16} /> Terminal Application
@@ -51,6 +53,60 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 />
                 iTerm2
               </label>
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Info size={16} /> About & Updates
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 'bold' }}>K8s Switcher Version:</span>{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>{updateInfo?.currentVersion || 'Loading...'}</span>
+                </div>
+                <button 
+                  className="ui-action-btn"
+                  onClick={checkForUpdates}
+                  disabled={isChecking}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', opacity: isChecking ? 0.7 : 1 }}
+                >
+                  <RefreshCw size={14} className={isChecking ? "animate-spin" : ""} />
+                  {isChecking ? 'Checking...' : 'Check for Updates'}
+                </button>
+              </div>
+
+              {updateInfo?.available && !updateSuccess && (
+                <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--primary-color)', borderRadius: '6px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', fontWeight: 'bold' }}>
+                    <DownloadCloud size={16} />
+                    Version {updateInfo.latestVersion} is available!
+                  </div>
+                  {updateError && <div style={{ color: '#ffb3b3', fontSize: '0.85rem' }}>Error: {updateError}</div>}
+                  <button 
+                    onClick={applyUpdate}
+                    disabled={isUpdating}
+                    style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', padding: '8px', borderRadius: '4px', cursor: isUpdating ? 'wait' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px' }}
+                  >
+                    {isUpdating ? <RefreshCw size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
+                    {isUpdating ? 'Updating via Brew...' : 'Update Now & Restart'}
+                  </button>
+                </div>
+              )}
+
+              {updateInfo && !updateInfo.available && !isChecking && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--success-color, #10b981)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Check size={14} /> You are on the latest version.
+                </div>
+              )}
+
+              {updateSuccess && (
+                <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#34d399', borderRadius: '6px', padding: '12px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                  <Check size={16} />
+                  <span>Update installed successfully! Please restart K8s Switcher to apply changes.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

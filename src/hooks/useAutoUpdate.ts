@@ -37,14 +37,12 @@ export function useAutoUpdate() {
       // Simple string comparison (for complex semver you might want a library, but this works for basic x.y.z)
       const isNewer = compareVersions(latestVersion, currentVersion) > 0;
       
-      if (isNewer) {
-        setUpdateInfo({
-          available: true,
-          currentVersion,
-          latestVersion,
-          releaseNotes: data.body || 'No release notes provided.'
-        });
-      }
+      setUpdateInfo({
+        available: isNewer,
+        currentVersion,
+        latestVersion,
+        releaseNotes: data.body || 'No release notes provided.'
+      });
     } catch (err: any) {
       console.error('Update check failed:', err);
     } finally {
