@@ -106,15 +106,26 @@ export function PodResourcePanel({ context, namespace, podName, containers }: Po
   };
 
   useEffect(() => {
+    let isActive = true;
     setHistory([]);
     setMetrics(null);
     fetchMetrics(true);
 
-    if (pollInterval.current) clearInterval(pollInterval.current);
-    pollInterval.current = setInterval(() => fetchMetrics(false), 5000);
+    if (pollInterval.current) clearTimeout(pollInterval.current);
+    
+    const poll = async () => {
+      if (!isActive) return;
+      await fetchMetrics(false);
+      if (isActive) {
+        pollInterval.current = setTimeout(poll, 5000);
+      }
+    };
+
+    pollInterval.current = setTimeout(poll, 5000);
 
     return () => {
-      if (pollInterval.current) clearInterval(pollInterval.current);
+      isActive = false;
+      if (pollInterval.current) clearTimeout(pollInterval.current);
     };
   }, [podName, context, namespace]);
 

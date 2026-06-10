@@ -10,7 +10,7 @@ interface SelectDropdownProps {
   options: SelectOption[];
   value: string;
   onChange: (value: string) => void;
-  label?: string;
+  label?: React.ReactNode;
   disabled?: boolean;
   className?: string;
   onToggleFavorite?: (value: string) => void;
@@ -115,6 +115,10 @@ export function SelectDropdown({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck="false"
             />
           </div>
           <div className="ui-select-options-list">

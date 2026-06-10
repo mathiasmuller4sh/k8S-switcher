@@ -10,6 +10,7 @@ interface RolloutRestartButtonProps {
 
 export function RolloutRestartButton({ context, namespace, podName }: RolloutRestartButtonProps) {
   const [loading, setLoading] = useState(false);
+  
 
   const handleRestart = async () => {
     setLoading(true);

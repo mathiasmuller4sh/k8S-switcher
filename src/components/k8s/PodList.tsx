@@ -21,6 +21,21 @@ function shortImage(image: string): string {
 export function PodList({ context, namespace, selectedPod, onSelectPod }: PodListProps) {
   const { pods, loading, refresh, autoRefresh, setAutoRefresh } = useKubePods(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const activeStatuses = [
+    'running', 'pending', 'containercreating', 'terminating', 
+    'crashloopbackoff', 'imagepullbackoff', 'error', 'evicted', 
+    'errimagepull', 'createcontainererror', 'runcontainererror'
+  ];
+  
+  const filteredPods = pods.filter(pod => {
+    if (showAll) return true;
+    
+    // Hide if status is not active
+    const status = pod.status.toLowerCase();
+    return activeStatuses.some(s => status.includes(s));
+  });
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -37,16 +52,27 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
   return (
     <Card className={`ui-pod-list-card ${isCollapsed ? 'collapsed' : ''}`}>
       <CardHeader 
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div 
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none', flex: 1 }}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
           {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           <Box size={14} className="text-primary" />
-          <span className="ui-action-title">Pods in {namespace} ({pods.length})</span>
+          <span className="ui-action-title">Pods in {namespace} ({filteredPods.length})</span>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+          <button 
+            className={`ui-header-action-btn ${!showAll ? 'active' : ''}`}
+            onClick={() => setShowAll(!showAll)}
+            title={showAll ? "Hide inactive pods" : "Show all pods (Jobs, Completed, etc.)"}
+          >
+            <Box size={14} style={{ display: !showAll ? 'block' : 'none' }} />
+            <RefreshCw size={14} style={{ display: !showAll ? 'none' : 'block' }} />
+            <span style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>{!showAll ? 'FILTERED' : 'SHOWING ALL'}</span>
+          </button>
           <button 
             className={`ui-header-action-btn ${loading ? 'spinning' : ''}`}
             onClick={refresh}
@@ -66,15 +92,15 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
       </CardHeader>
       
       {!isCollapsed && (
-        <CardContent style={{ padding: 0 }}>
-          <div className="ui-pod-list">
+        <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="ui-pod-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-pod-list-header">
               <span>Name</span>
               <span style={{ textAlign: 'right' }}>Age</span>
               <span style={{ textAlign: 'center' }}>Status</span>
             </div>
-            <div className="ui-pod-list-content" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {pods.map((pod) => (
+            <div className="ui-pod-list-content" style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredPods.map((pod) => (
                 <div
                   key={pod.name}
                   className={`ui-pod-item ${selectedPod === pod.name ? 'selected' : ''}`}
@@ -83,18 +109,20 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
                   <div className="ui-pod-name-block">
                     <span className="ui-pod-name" title={pod.name}>{pod.name}</span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      {pod.image && (
-                        <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
-                      )}
-                      <div className="ui-pod-labels">
-                        {Object.entries(pod.labels || {})
-                          .filter(([key]) => !['pod-template-hash', 'controller-revision-hash', 'statefulset.kubernetes.io/pod-name'].some(ignored => key.includes(ignored)))
-                          .slice(0, 3) // Limit to 3 most important labels
-                          .map(([key, value]) => (
-                            <span key={key} className="ui-pod-label-badge" title={`${key}=${value}`}>
-                              {value}
-                            </span>
-                          ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {pod.image && (
+                          <span className="ui-pod-image" title={pod.image}>{shortImage(pod.image)}</span>
+                        )}
+                        <div className="ui-pod-labels">
+                          {Object.entries(pod.labels || {})
+                            .filter(([key]) => !['pod-template-hash', 'controller-revision-hash', 'statefulset.kubernetes.io/pod-name'].some(ignored => key.includes(ignored)))
+                            .slice(0, 2) // Limit to 2 most important labels to save space
+                            .map(([key, value]) => (
+                              <span key={key} className="ui-pod-label-badge" title={`${key}=${value}`}>
+                                {value}
+                              </span>
+                            ))}
+                        </div>
                       </div>
                     </div>
                   </div>

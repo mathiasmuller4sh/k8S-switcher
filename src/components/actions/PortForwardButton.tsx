@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Unplug, Plug } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { invoke } from '@tauri-apps/api/core';
+import { useSettings } from '../../hooks/useSettings';
 import { useActionHistory } from '../../hooks/useActionHistory';
 
 interface PortForwardButtonProps {
@@ -15,10 +16,11 @@ export function PortForwardButton({ context, namespace, podName, podPorts }: Por
   const firstPort = podPorts.length > 0 ? String(podPorts[0]) : '8080';
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { settings } = useSettings();
   const [localPort, setLocalPort] = useState(firstPort);
   const [podPort, setPodPort] = useState(firstPort);
   const { addAction } = useActionHistory();
-
+  
   // Reset ports when pod changes
   React.useEffect(() => {
     const p = podPorts.length > 0 ? String(podPorts[0]) : '8080';
@@ -44,7 +46,7 @@ export function PortForwardButton({ context, namespace, podName, podPorts }: Por
           podName, 
           localPort: lp, 
           podPort: pp 
-        });
+        , terminalApp: settings.terminalApp });
         addAction({ type: 'PortForward', context, namespace, podName, localPort: lp, podPort: pp });
         setIsActive(true);
       }

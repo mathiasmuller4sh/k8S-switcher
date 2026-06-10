@@ -1,0 +1,63 @@
+name: Release & Publish to Homebrew
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npm run build-app
+
+      - name: Get tag version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get DMG path
+        id: get_dmg
+        run: |
+          DMG_PATH=$(find src-tauri/target/release/bundle/macos -name "*.dmg" | head -n 1)
+          echo "DMG_PATH=${DMG_PATH}" >> $GITHUB_OUTPUT
+          DMG_NAME=$(basename "${DMG_PATH}")
+          echo "DMG_NAME=${DMG_NAME}" >> $GITHUB_OUTPUT
+          SHA256=$(shasum -a 256 "${DMG_PATH}" | awk '{print $1}')
+          echo "SHA256=${SHA256}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.get_dmg.outputs.DMG_PATH }}
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      - name: Bump Homebrew Cask
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: k8s-switcher
+          homebrew-tap: mathiasmuller4sh/homebrew-tap
+          download-url: https://github.com/mathiasmuller4sh/k8S-switcher/releases/download/v${{ steps.get_version.outputs.VERSION }}/${{ steps.get_dmg.outputs.DMG_NAME }}
+          commit-message: "Update k8s-switcher to v${{ steps.get_version.outputs.VERSION }}"
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

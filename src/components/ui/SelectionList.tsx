@@ -62,6 +62,10 @@ export function SelectionList({
             placeholder={`Search ${title.toLowerCase()}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck="false"
           />
         </div>
       </div>

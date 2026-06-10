@@ -6,7 +6,7 @@ import { ShellButton } from './ShellButton';
 import { DescribeButton } from './DescribeButton';
 import { RolloutRestartButton } from './RolloutRestartButton';
 import { AppLogsButton } from './AppLogsButton';
-import { Card, CardContent, CardHeader } from '../ui/Card';
+import { RecentActions } from './RecentActions';
 
 interface ActionPanelProps {
   context: string;
@@ -24,29 +24,34 @@ export function ActionPanel({ context, namespace, podName, podPorts, podLabels }
   }
 
   return (
-    <Card className={`ui-action-panel ${isCollapsed ? 'collapsed' : ''}`}>
-      <CardHeader 
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          <Zap size={14} className="text-primary" />
+    <div className={`ui-action-panel-footer ${isCollapsed ? 'collapsed' : ''}`}>
+      <div className="ui-action-panel-header" onClick={() => setIsCollapsed(!isCollapsed)}>
+        {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        <Zap size={14} className="text-primary" />
+        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1', fontWeight: 600, textTransform: 'uppercase' }}>
+            {namespace}
+          </span>
           <span className="ui-action-title">Actions for {podName}</span>
         </div>
-      </CardHeader>
+      </div>
       {!isCollapsed && (
-        <CardContent className="ui-action-buttons">
-          <DescribeButton context={context} namespace={namespace} podName={podName} />
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <LogsButton context={context} namespace={namespace} podName={podName} />
-            <AppLogsButton context={context} namespace={namespace} labels={podLabels} />
+        <div className="ui-action-panel-content">
+          <div className="ui-action-buttons">
+            <DescribeButton context={context} namespace={namespace} podName={podName} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <LogsButton context={context} namespace={namespace} podName={podName} />
+              <AppLogsButton context={context} namespace={namespace} labels={podLabels} />
+            </div>
+            <ShellButton context={context} namespace={namespace} podName={podName} />
+            <RolloutRestartButton context={context} namespace={namespace} podName={podName} />
+            <PortForwardButton context={context} namespace={namespace} podName={podName} podPorts={podPorts} />
           </div>
-          <ShellButton context={context} namespace={namespace} podName={podName} />
-          <RolloutRestartButton context={context} namespace={namespace} podName={podName} />
-          <PortForwardButton context={context} namespace={namespace} podName={podName} podPorts={podPorts} />
-        </CardContent>
+          <div className="ui-action-panel-top-actions">
+            <RecentActions isContextSelected={true} namespace={namespace} />
+          </div>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

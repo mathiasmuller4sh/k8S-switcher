@@ -22,7 +22,7 @@ export interface Pod {
 export function useKubePods(context: string, namespace: string) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [loading, setLoading] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchPods = async (showLoading = true) => {
     if (!context || !namespace) {
@@ -46,14 +46,24 @@ export function useKubePods(context: string, namespace: string) {
   }, [context, namespace]);
 
   useEffect(() => {
-    let interval: any;
+    let isActive = true;
+    let timeout: any;
+
+    const poll = async () => {
+      if (!isActive) return;
+      await fetchPods(false);
+      if (isActive) {
+        timeout = setTimeout(poll, 5000);
+      }
+    };
+
     if (autoRefresh && context && namespace) {
-      interval = setInterval(() => {
-        fetchPods(false);
-      }, 5000); // 5 seconds polling
+      timeout = setTimeout(poll, 5000);
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      isActive = false;
+      if (timeout) clearTimeout(timeout);
     };
   }, [autoRefresh, context, namespace]);
 

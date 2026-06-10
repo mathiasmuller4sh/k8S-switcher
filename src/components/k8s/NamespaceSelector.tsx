@@ -2,6 +2,9 @@ import { useKubeNamespaces } from '../../hooks/useKubeNamespaces';
 import { SelectDropdown } from '../ui/SelectDropdown';
 import { SelectionList } from '../ui/SelectionList';
 import { useFavorites } from '../../hooks/useFavorites';
+import { Terminal } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { useSettings } from '../../hooks/useSettings';
 
 interface NamespaceSelectorProps {
   context: string;
@@ -32,9 +35,40 @@ export function NamespaceSelector({ context, selected, onSelect, displayMode = '
 
   if (!context) return null;
 
+  const { settings } = useSettings();
+
+  const handleOpenTerminal = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!context || !selected) return;
+    try {
+      await invoke('open_terminal', { 
+        context, 
+        namespace: selected,
+        terminalApp: settings.terminalApp
+      });
+    } catch (error) {
+      console.error('Failed to open terminal', error);
+    }
+  };
+
+  const labelNode = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+      <span>Namespace</span>
+      {selected && (
+        <button 
+          className="ui-header-action-btn"
+          title="Open Terminal in this Namespace" 
+          onClick={handleOpenTerminal}
+        >
+          <Terminal size={14} />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <SelectDropdown
-      label="Namespace"
+      label={labelNode}
       value={selected}
       onChange={onSelect}
       options={options}

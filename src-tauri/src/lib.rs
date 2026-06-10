@@ -1,9 +1,26 @@
-use k8s_openapi::api::core::v1::Pod;
-use kube::{config::KubeConfigOptions, config::Kubeconfig, Api, Client, Config};
+use k8s_openapi::api::core::v1::{Event, PersistentVolumeClaim, Pod};
+use k8s_openapi::api::networking::v1::Ingress;
+use kube::config::Kubeconfig;
 use serde::Serialize;
 use std::process::Command;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
+
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use std::collections::HashMap;
+
+#[derive(Default, Clone)]
+struct SearchCache {
+    namespaces: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    is_syncing: Arc<RwLock<bool>>,
+}
+
+#[derive(Serialize)]
+struct SearchResult {
+    context: String,
+    namespace: String,
+}
 
 /// Find kubectl binary, searching common macOS locations when running as a bundled .app.
 fn kubectl_path() -> String {
@@ -98,6 +115,37 @@ pub struct PodInfo {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PvcInfo {
+    name: String,
+    status: String,
+    capacity: String,
+    access_modes: Vec<String>,
+    storage_class: String,
+    age: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngressInfo {
+    name: String,
+    hosts: String,
+    address: String,
+    ports: String,
+    age: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventInfo {
+    event_type: String,
+    reason: String,
+    object: String,
+    message: String,
+    age: String,
+}
+
+#[derive(Serialize)]
 pub struct CurrentContextInfo {
     context: String,
     namespace: String,
@@ -154,6 +202,62 @@ async fn get_namespaces(context: String) -> Result<Vec<String>, String> {
     Ok(namespaces)
 }
 
+fn get_pod_status(pod: &Pod) -> String {
+    if pod.metadata.deletion_timestamp.is_some() {
+        return "Terminating".to_string();
+    }
+
+    let status = pod
+        .status
+        .as_ref()
+        .and_then(|s| s.phase.clone())
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    if let Some(pod_status) = &pod.status {
+        // Check init containers
+        if let Some(init_statuses) = &pod_status.init_container_statuses {
+            for cs in init_statuses {
+                if let Some(state) = &cs.state {
+                    if let Some(waiting) = &state.waiting {
+                        if let Some(reason) = &waiting.reason {
+                            if reason != "PodInitializing" {
+                                return reason.clone();
+                            }
+                        }
+                    } else if let Some(terminated) = &state.terminated {
+                        if let Some(reason) = &terminated.reason {
+                            if reason != "Completed" {
+                                return reason.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check regular containers
+        if let Some(container_statuses) = &pod_status.container_statuses {
+            for cs in container_statuses {
+                if let Some(state) = &cs.state {
+                    if let Some(waiting) = &state.waiting {
+                        if let Some(reason) = &waiting.reason {
+                            return reason.clone();
+                        }
+                    } else if let Some(terminated) = &state.terminated {
+                        if let Some(reason) = &terminated.reason {
+                            if reason != "Completed" {
+                                return reason.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    status
+}
+
 #[tauri::command]
 async fn get_pods(context: String, namespace: String) -> Result<Vec<PodInfo>, String> {
     let output = kubectl_cmd()
@@ -174,11 +278,8 @@ async fn get_pods(context: String, namespace: String) -> Result<Vec<PodInfo>, St
     let now = chrono::Utc::now();
 
     for pod in pod_list {
-        let name = pod.metadata.name.unwrap_or_default();
-        let status = pod
-            .status
-            .and_then(|s| s.phase)
-            .unwrap_or_else(|| "Unknown".to_string());
+        let name = pod.metadata.name.clone().unwrap_or_default();
+        let status = get_pod_status(&pod);
 
         let age = if let Some(creation_timestamp) = pod.metadata.creation_timestamp {
             let ts_str = creation_timestamp.0.to_string();
@@ -298,6 +399,535 @@ async fn get_pods(context: String, namespace: String) -> Result<Vec<PodInfo>, St
     Ok(pods)
 }
 
+#[tauri::command]
+async fn get_pvcs(context: String, namespace: String) -> Result<Vec<PvcInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "pvc", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get pvc failed: {}", err));
+        return Err(err);
+    }
+
+    let pvc_list: kube::api::ObjectList<PersistentVolumeClaim> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse PVCs JSON: {}", e))?;
+
+    let mut pvcs = Vec::new();
+    let now = chrono::Utc::now();
+
+    for pvc in pvc_list {
+        let name = pvc.metadata.name.clone().unwrap_or_default();
+        let status = pvc.status.as_ref()
+            .and_then(|s| s.phase.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        
+        let capacity = pvc.status.as_ref()
+            .and_then(|s| s.capacity.as_ref())
+            .and_then(|c| c.get("storage"))
+            .map(|q| q.0.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let access_modes = pvc.spec.as_ref()
+            .and_then(|s| s.access_modes.clone())
+            .unwrap_or_default();
+
+        let storage_class = pvc.spec.as_ref()
+            .and_then(|s| s.storage_class_name.clone())
+            .unwrap_or_else(|| "Default".to_string());
+
+        let age = if let Some(creation_timestamp) = pvc.metadata.creation_timestamp {
+            let ts_str = creation_timestamp.0.to_string();
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                let seconds = duration.num_seconds() % 60;
+
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
+                } else {
+                    format!("{}s", seconds)
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        pvcs.push(PvcInfo {
+            name,
+            status,
+            capacity,
+            access_modes,
+            storage_class,
+            age,
+        });
+    }
+
+    pvcs.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(pvcs)
+}
+
+#[tauri::command]
+async fn get_ingresses(context: String, namespace: String) -> Result<Vec<IngressInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "ingress", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get ingress failed: {}", err));
+        return Err(err);
+    }
+
+    let ingress_list: kube::api::ObjectList<Ingress> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Ingress JSON: {}", e))?;
+
+    let mut ingresses = Vec::new();
+    let now = chrono::Utc::now();
+
+    for ingress in ingress_list {
+        let name = ingress.metadata.name.clone().unwrap_or_default();
+        
+        let mut hosts = Vec::new();
+        if let Some(spec) = &ingress.spec {
+            if let Some(rules) = &spec.rules {
+                for rule in rules {
+                    if let Some(h) = &rule.host {
+                        hosts.push(h.clone());
+                    } else {
+                        hosts.push("*".to_string());
+                    }
+                }
+            }
+        }
+        let hosts_str = if hosts.is_empty() { "*".to_string() } else { hosts.join(", ") };
+
+        let mut addresses = Vec::new();
+        if let Some(status) = &ingress.status {
+            if let Some(lb) = &status.load_balancer {
+                if let Some(ingresses) = &lb.ingress {
+                    for ing in ingresses {
+                        if let Some(ip) = &ing.ip {
+                            addresses.push(ip.clone());
+                        }
+                        if let Some(hostname) = &ing.hostname {
+                            addresses.push(hostname.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let address_str = addresses.join(", ");
+
+        let ports = "80, 443".to_string(); // Simplified for standard ingresses
+
+        let age = if let Some(creation_timestamp) = ingress.metadata.creation_timestamp {
+            let ts_str = creation_timestamp.0.to_string();
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                let seconds = duration.num_seconds() % 60;
+
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
+                } else {
+                    format!("{}s", seconds)
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        ingresses.push(IngressInfo {
+            name,
+            hosts: hosts_str,
+            address: address_str,
+            ports,
+            age,
+        });
+    }
+
+    ingresses.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(ingresses)
+}
+
+#[tauri::command]
+async fn get_events(context: String, namespace: String) -> Result<Vec<EventInfo>, String> {
+    // Sort by lastTimestamp directly using kubectl to get chronological order
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "events", "--sort-by=.lastTimestamp", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get events failed: {}", err));
+        return Err(err);
+    }
+
+    let event_list: kube::api::ObjectList<Event> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Events JSON: {}", e))?;
+
+    let mut events = Vec::new();
+    let now = chrono::Utc::now();
+
+    for event in event_list {
+        let event_type = event.type_.unwrap_or_else(|| "Normal".to_string());
+        let reason = event.reason.unwrap_or_default();
+        let message = event.message.unwrap_or_default();
+        
+        let object = format!("{}/{}", 
+            event.involved_object.kind.unwrap_or_default(), 
+            event.involved_object.name.unwrap_or_default()
+        );
+
+        let timestamp_to_use = event.last_timestamp.or(event.metadata.creation_timestamp);
+
+        let age = if let Some(ts) = timestamp_to_use {
+            let ts_str = ts.0.to_string();
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                let seconds = duration.num_seconds() % 60;
+
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
+                } else {
+                    format!("{}s", seconds)
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        // Prepend to show most recent first (kubectl sorts ascending)
+        events.insert(0, EventInfo {
+            event_type,
+            reason,
+            object,
+            message,
+            age,
+        });
+    }
+
+    Ok(events)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CronJobInfo {
+    name: String,
+    schedule: String,
+    suspend: bool,
+    active: usize,
+    last_schedule: String,
+    age: String,
+}
+
+#[tauri::command]
+async fn get_cronjobs(context: String, namespace: String) -> Result<Vec<CronJobInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "cronjobs", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get cronjobs failed: {}", err));
+        return Err(err);
+    }
+
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse CronJobs JSON: {}", e))?;
+
+    let empty_vec = vec![];
+    let items = parsed["items"].as_array().unwrap_or(&empty_vec);
+    let mut cronjobs = Vec::new();
+    let now = chrono::Utc::now();
+
+    for item in items {
+        let name = item["metadata"]["name"].as_str().unwrap_or_default().to_string();
+        let schedule = item["spec"]["schedule"].as_str().unwrap_or_default().to_string();
+        let suspend = item["spec"]["suspend"].as_bool().unwrap_or(false);
+        let active = item["status"]["active"].as_array().map_or(0, |a| a.len());
+        
+        let last_schedule = if let Some(last) = item["status"]["lastScheduleTime"].as_str() {
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(last) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                if duration.num_minutes() < 60 {
+                    format!("{}m ago", duration.num_minutes())
+                } else if duration.num_hours() < 24 {
+                    format!("{}h ago", duration.num_hours())
+                } else {
+                    format!("{}d ago", duration.num_days())
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Never".to_string()
+        };
+
+        let age = if let Some(creation_timestamp) = item["metadata"]["creationTimestamp"].as_str() {
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(creation_timestamp) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                let seconds = duration.num_seconds() % 60;
+
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
+                } else {
+                    format!("{}s", seconds)
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        cronjobs.push(CronJobInfo {
+            name,
+            schedule,
+            suspend,
+            active,
+            last_schedule,
+            age,
+        });
+    }
+
+    cronjobs.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(cronjobs)
+}
+
+#[tauri::command]
+async fn trigger_cronjob(context: String, namespace: String, cronjob_name: String) -> Result<String, String> {
+    let timestamp = chrono::Utc::now().timestamp();
+    let job_name = format!("{}-manual-{}", cronjob_name.chars().take(30).collect::<String>(), timestamp);
+    
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "create", "job", "--from", &format!("cronjob/{}", cronjob_name), &job_name])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl create job failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(job_name)
+}
+
+#[tauri::command]
+async fn get_latest_cronjob_job(context: String, namespace: String, cronjob_name: String) -> Result<String, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "jobs", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get jobs failed: {}", err));
+        return Err(err);
+    }
+
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Jobs JSON: {}", e))?;
+
+    let empty_vec = vec![];
+    let items = parsed["items"].as_array().unwrap_or(&empty_vec);
+    
+    let mut latest_job = None;
+    let mut latest_time = 0;
+
+    for item in items {
+        let mut is_owned = false;
+        if let Some(owners) = item["metadata"]["ownerReferences"].as_array() {
+            for owner in owners {
+                if owner["kind"].as_str() == Some("CronJob") && owner["name"].as_str() == Some(cronjob_name.as_str()) {
+                    is_owned = true;
+                    break;
+                }
+            }
+        }
+        
+        if is_owned {
+            let name = item["metadata"]["name"].as_str().unwrap_or_default().to_string();
+            if let Some(creation) = item["metadata"]["creationTimestamp"].as_str() {
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(creation) {
+                    let ts = dt.timestamp();
+                    if ts > latest_time {
+                        latest_time = ts;
+                        latest_job = Some(name);
+                    }
+                }
+            }
+        }
+    }
+
+    latest_job.ok_or_else(|| "No jobs found for this cronjob".to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobInfo {
+    name: String,
+    status: String,
+    start_time: String,
+    completion_time: Option<String>,
+    duration: String,
+    cronjob_name: Option<String>,
+}
+
+#[tauri::command]
+async fn get_jobs(context: String, namespace: String) -> Result<Vec<JobInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "jobs", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get jobs failed: {}", err));
+        return Err(err);
+    }
+
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Jobs JSON: {}", e))?;
+
+    let empty_vec = vec![];
+    let items = parsed["items"].as_array().unwrap_or(&empty_vec);
+    
+    let mut jobs = Vec::new();
+    let now = chrono::Utc::now();
+
+    for item in items {
+        let name = item["metadata"]["name"].as_str().unwrap_or_default().to_string();
+        
+        let mut cronjob_name = None;
+        if let Some(owners) = item["metadata"]["ownerReferences"].as_array() {
+            for owner in owners {
+                if owner["kind"].as_str() == Some("CronJob") {
+                    cronjob_name = owner["name"].as_str().map(|s| s.to_string());
+                    break;
+                }
+            }
+        }
+
+        let status = if item["status"]["active"].as_i64().unwrap_or(0) > 0 {
+            "Running".to_string()
+        } else if item["status"]["succeeded"].as_i64().unwrap_or(0) > 0 {
+            "Complete".to_string()
+        } else if item["status"]["failed"].as_i64().unwrap_or(0) > 0 {
+            "Failed".to_string()
+        } else {
+            "Pending".to_string()
+        };
+
+        let start_time = item["status"]["startTime"].as_str().unwrap_or("").to_string();
+        let completion_time = item["status"]["completionTime"].as_str().map(|s| s.to_string());
+
+        let mut duration_str = "Unknown".to_string();
+        let mut sort_ts = 0;
+        if !start_time.is_empty() {
+            if let Ok(st) = chrono::DateTime::parse_from_rfc3339(&start_time) {
+                sort_ts = st.timestamp();
+                let end_time = completion_time
+                    .as_ref()
+                    .and_then(|c| chrono::DateTime::parse_from_rfc3339(c).ok())
+                    .unwrap_or_else(|| now.into());
+                
+                let duration = end_time.signed_duration_since(st);
+                let mins = duration.num_minutes();
+                let secs = duration.num_seconds() % 60;
+                
+                if mins > 0 {
+                    duration_str = format!("{}m{}s", mins, secs);
+                } else {
+                    duration_str = format!("{}s", secs);
+                }
+            }
+        } else if let Some(creation) = item["metadata"]["creationTimestamp"].as_str() {
+            if let Ok(st) = chrono::DateTime::parse_from_rfc3339(creation) {
+                sort_ts = st.timestamp();
+            }
+        }
+
+        let display_start_time = if let Ok(st) = chrono::DateTime::parse_from_rfc3339(&start_time) {
+            st.format("%Y-%m-%d %H:%M:%S").to_string()
+        } else {
+            "Unknown".to_string()
+        };
+
+        jobs.push((sort_ts, JobInfo {
+            name,
+            status,
+            start_time: display_start_time,
+            completion_time,
+            duration: duration_str,
+            cronjob_name,
+        }));
+    }
+
+    // Sort jobs descending by start time
+    jobs.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(jobs.into_iter().map(|(_, j)| j).collect())
+}
+#[tauri::command]
+async fn execute_brew_upgrade() -> Result<String, String> {
+    let brew_path = if std::path::Path::new("/opt/homebrew/bin/brew").exists() {
+        "/opt/homebrew/bin/brew"
+    } else {
+        "/usr/local/bin/brew"
+    };
+
+    let output = std::process::Command::new(brew_path)
+        .args(["upgrade", "--cask", "k8s-switcher"])
+        .output()
+        .map_err(|e| format!("Failed to execute brew upgrade: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("brew upgrade error: {}", err));
+        return Err(err);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
 #[derive(Serialize)]
 pub struct ContainerMetrics {
     cpu: String,
@@ -393,80 +1023,90 @@ async fn get_pod_metrics(
     Ok(PodMetrics { total, containers })
 }
 
+fn get_terminal_script(terminal_app: Option<String>, command: &str) -> String {
+    let app = terminal_app.unwrap_or_else(|| "Terminal".to_string()).to_lowercase();
+    if app == "iterm" || app == "iterm2" {
+        format!(
+            "tell application \"iTerm\"\n\
+                if (count of windows) = 0 then\n\
+                    create window with default profile\n\
+                else\n\
+                    tell current window\n\
+                        create tab with default profile\n\
+                    end tell\n\
+                end if\n\
+                tell current session of current window\n\
+                    write text \"{}\"\n\
+                end tell\n\
+                activate\n\
+            end tell",
+            command.replace("\"", "\\\"")
+        )
+    } else {
+        format!(
+            "tell app \"Terminal\" to activate\ntell app \"Terminal\" to do script \"{}\"",
+            command.replace("\"", "\\\"")
+        )
+    }
+}
+
+fn execute_terminal_script(script: &str) -> Result<(), String> {
+    Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .spawn()
+        .map_err(|e| format!("Failed to open terminal: {}", e))?;
+    Ok(())
+}
+
 #[tauri::command]
-fn open_describe(context: String, namespace: String, pod_name: String) -> Result<(), String> {
+fn open_terminal(context: String, namespace: String, terminal_app: Option<String>) -> Result<(), String> {
+    let kubectl_cmd = format!(
+        "kubectl config use-context {} && kubectl config set-context --current --namespace={} && clear",
+        context, namespace
+    );
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
+}
+
+#[tauri::command]
+fn open_describe(context: String, namespace: String, pod_name: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} describe pod {}",
         context, namespace, pod_name
     );
-    let script = format!("tell app \"Terminal\" to do script \"{}\"", kubectl_cmd);
-
-    Command::new("osascript")
-        .arg("-e")
-        .arg("tell app \"Terminal\" to activate")
-        .arg("-e")
-        .arg(&script)
-        .spawn()
-        .map_err(|e| format!("Failed to open terminal: {}", e))?;
-
-    Ok(())
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
 }
 
 #[tauri::command]
-fn open_logs(context: String, namespace: String, pod_name: String) -> Result<(), String> {
+fn open_logs(context: String, namespace: String, pod_name: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} logs -f {}",
         context, namespace, pod_name
     );
-    let script = format!("tell app \"Terminal\" to do script \"{}\"", kubectl_cmd);
-
-    Command::new("osascript")
-        .arg("-e")
-        .arg("tell app \"Terminal\" to activate")
-        .arg("-e")
-        .arg(&script)
-        .spawn()
-        .map_err(|e| format!("Failed to open terminal: {}", e))?;
-
-    Ok(())
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
 }
 
 #[tauri::command]
-fn open_logs_by_label(context: String, namespace: String, label_selector: String) -> Result<(), String> {
+fn open_logs_by_label(context: String, namespace: String, label_selector: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} logs -l {} -f --tail=100 --prefix",
         context, namespace, label_selector
     );
-    let script = format!("tell app \"Terminal\" to do script \"{}\"", kubectl_cmd);
-
-    Command::new("osascript")
-        .arg("-e")
-        .arg("tell app \"Terminal\" to activate")
-        .arg("-e")
-        .arg(&script)
-        .spawn()
-        .map_err(|e| format!("Failed to open terminal: {}", e))?;
-
-    Ok(())
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
 }
 
 #[tauri::command]
-fn open_shell(context: String, namespace: String, pod_name: String) -> Result<(), String> {
+fn open_shell(context: String, namespace: String, pod_name: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} exec -it {} -- /bin/sh",
         context, namespace, pod_name
     );
-    let script = format!("tell app \"Terminal\" to do script \"{}\"", kubectl_cmd);
-
-    Command::new("osascript")
-        .arg("-e")
-        .arg("tell app \"Terminal\" to activate")
-        .arg("-e")
-        .arg(&script)
-        .spawn()
-        .map_err(|e| format!("Failed to open terminal: {}", e))?;
-
-    Ok(())
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
 }
 
 #[tauri::command]
@@ -476,26 +1116,14 @@ fn start_port_forward(
     pod_name: String,
     local_port: u16,
     pod_port: u16,
+    terminal_app: Option<String>
 ) -> Result<(), String> {
-    // For a real app, you would want to keep the Child handle so you can kill it later.
-    // To keep it simple for now, we just spawn it in the background.
-    // Wait, the plan says we should store the process handle. Let's just spawn it in terminal for now for transparency?
-    // Let's spawn it in terminal so the user can see it and stop it manually with Ctrl+C.
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} port-forward {} {}:{}",
         context, namespace, pod_name, local_port, pod_port
     );
-    let script = format!("tell app \"Terminal\" to do script \"{}\"", kubectl_cmd);
-
-    Command::new("osascript")
-        .arg("-e")
-        .arg("tell app \"Terminal\" to activate")
-        .arg("-e")
-        .arg(&script)
-        .spawn()
-        .map_err(|e| format!("Failed to open terminal: {}", e))?;
-
-    Ok(())
+    let script = get_terminal_script(terminal_app, &kubectl_cmd);
+    execute_terminal_script(&script)
 }
 
 #[tauri::command]
@@ -569,27 +1197,265 @@ async fn rollout_restart(context: String, namespace: String, pod_name: String) -
     Ok(())
 }
 
+#[tauri::command]
+async fn sync_namespaces_cache(
+    state: tauri::State<'_, SearchCache>,
+) -> Result<(), String> {
+    let mut is_syncing = state.is_syncing.write().await;
+    if *is_syncing {
+        return Ok(());
+    }
+    *is_syncing = true;
+    drop(is_syncing);
+
+    let cache = state.namespaces.clone();
+    let is_syncing_flag = state.is_syncing.clone();
+
+        // Do this in background to avoid blocking
+    tokio::spawn(async move {
+        log_debug("Starting namespace cache sync...");
+        let kubeconfig = match Kubeconfig::read() {
+            Ok(kc) => kc,
+            Err(e) => {
+                log_debug(&format!("Failed to read kubeconfig in sync: {:?}", e));
+                *is_syncing_flag.write().await = false;
+                return;
+            }
+        };
+
+        let mut initial_results = HashMap::new();
+        for ctx in &kubeconfig.contexts {
+            if let Some(ctx_inner) = &ctx.context {
+                if let Some(ns) = &ctx_inner.namespace {
+                    initial_results.insert(ctx.name.clone(), vec![ns.clone()]);
+                }
+            }
+        }
+        {
+            let mut cache_write = cache.write().await;
+            *cache_write = initial_results;
+        }
+
+        let contexts: Vec<String> = kubeconfig.contexts.into_iter().map(|c| c.name).collect();
+        log_debug(&format!("Syncing namespaces for {} contexts...", contexts.len()));
+        let mut fetch_tasks = Vec::new();
+
+        for ctx in contexts {
+            let ctx_clone = ctx.clone();
+            let task = tokio::spawn(async move {
+                let output_res = tokio::time::timeout(
+                    std::time::Duration::from_secs(15),
+                    tokio::task::spawn_blocking(move || {
+                        kubectl_cmd()
+                            .args(["--context", &ctx_clone, "get", "namespaces", "-o", "jsonpath={.items[*].metadata.name}"])
+                            .output()
+                    })
+                ).await;
+
+                let mut namespaces = Vec::new();
+                if let Ok(Ok(Ok(output))) = output_res {
+                    if output.status.success() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        namespaces = stdout.split_whitespace().map(|s| s.to_string()).collect();
+                        namespaces.sort();
+                    }
+                }
+                (ctx, namespaces)
+            });
+            fetch_tasks.push(task);
+        }
+
+        let mut results = HashMap::new();
+        for task in fetch_tasks {
+            if let Ok((ctx, namespaces)) = task.await {
+                if !namespaces.is_empty() {
+                    results.insert(ctx, namespaces);
+                }
+            }
+        }
+
+        log_debug(&format!("Sync completed. Found namespaces in {} contexts.", results.len()));
+        let mut cache_write = cache.write().await;
+        // Merge results so we don't lose the pre-populated default ones if a context failed
+        for (ctx, mut namespaces) in results {
+            if let Some(existing) = cache_write.get(&ctx) {
+                for ex_ns in existing {
+                    if !namespaces.contains(ex_ns) {
+                        namespaces.push(ex_ns.clone());
+                    }
+                }
+            }
+            cache_write.insert(ctx, namespaces);
+        }
+
+        *is_syncing_flag.write().await = false;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn search_namespaces(
+    query: String,
+    state: tauri::State<'_, SearchCache>,
+) -> Result<Vec<SearchResult>, String> {
+    let cache = state.namespaces.read().await;
+    let mut results = Vec::new();
+    let q = query.to_lowercase();
+    
+    for (ctx, namespaces) in cache.iter() {
+        for ns in namespaces {
+            if ns.to_lowercase().contains(&q) || ctx.to_lowercase().contains(&q) {
+                results.push(SearchResult {
+                    context: ctx.clone(),
+                    namespace: ns.clone(),
+                });
+            }
+        }
+    }
+    
+    results.sort_by(|a, b| {
+        match a.context.cmp(&b.context) {
+            std::cmp::Ordering::Equal => a.namespace.cmp(&b.namespace),
+            other => other,
+        }
+    });
+    
+    if results.len() > 100 {
+        results.truncate(100);
+    }
+    
+    Ok(results)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let cache = SearchCache::default();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(cache)
         .invoke_handler(tauri::generate_handler![
             get_contexts,
             get_current_context,
             get_namespaces,
             get_pods,
             get_pod_metrics,
+            open_terminal,
             open_describe,
             open_logs,
             open_shell,
             start_port_forward,
             stop_port_forward,
             rollout_restart,
-            open_logs_by_label
+            open_logs_by_label,
+            get_pvcs,
+            get_ingresses,
+            get_events,
+            get_cronjobs,
+            trigger_cronjob,
+            get_latest_cronjob_job,
+            get_jobs,
+            execute_brew_upgrade,
+            sync_namespaces_cache,
+            search_namespaces
         ])
         .setup(|app| {
             let _handle = app.handle();
+            
+            // Trigger initial sync
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(state) = app_handle.try_state::<SearchCache>() {
+                    // Call the command logic directly or just copy the logic here,
+                    // Actually we can't easily call command from here.
+                    // Let's just do it directly.
+                    let is_syncing_flag = state.is_syncing.clone();
+                    let cache = state.namespaces.clone();
+                    
+                    let mut is_syncing = is_syncing_flag.write().await;
+                    if *is_syncing { return; }
+                    *is_syncing = true;
+                    drop(is_syncing);
+                    
+                    let kubeconfig = match Kubeconfig::read() {
+                        Ok(kc) => kc,
+                        Err(e) => {
+                            log_debug(&format!("Failed to read kubeconfig in setup sync: {:?}", e));
+                            *is_syncing_flag.write().await = false;
+                            return;
+                        }
+                    };
+                    
+                    let mut initial_results = HashMap::new();
+                    for ctx in &kubeconfig.contexts {
+                        if let Some(ctx_inner) = &ctx.context {
+                            if let Some(ns) = &ctx_inner.namespace {
+                                initial_results.insert(ctx.name.clone(), vec![ns.clone()]);
+                            }
+                        }
+                    }
+                    {
+                        let mut cache_write = cache.write().await;
+                        *cache_write = initial_results;
+                    }
+
+                    let contexts: Vec<String> = kubeconfig.contexts.into_iter().map(|c| c.name).collect();
+                    log_debug(&format!("Setup sync: Syncing namespaces for {} contexts...", contexts.len()));
+                    let mut fetch_tasks = Vec::new();
+                    
+                    for ctx in contexts {
+                        let ctx_clone = ctx.clone();
+                        let task = tokio::spawn(async move {
+                            let output_res = tokio::time::timeout(
+                                std::time::Duration::from_secs(15),
+                                tokio::task::spawn_blocking(move || {
+                                    kubectl_cmd()
+                                        .args(["--context", &ctx_clone, "get", "namespaces", "-o", "jsonpath={.items[*].metadata.name}"])
+                                        .output()
+                                })
+                            ).await;
+            
+                            let mut namespaces = Vec::new();
+                            if let Ok(Ok(Ok(output))) = output_res {
+                                if output.status.success() {
+                                    let stdout = String::from_utf8_lossy(&output.stdout);
+                                    namespaces = stdout.split_whitespace().map(|s| s.to_string()).collect();
+                                    namespaces.sort();
+                                }
+                            }
+                            (ctx, namespaces)
+                        });
+                        fetch_tasks.push(task);
+                    }
+                    
+                    let mut results = HashMap::new();
+                    for task in fetch_tasks {
+                        if let Ok((ctx, namespaces)) = task.await {
+                            if !namespaces.is_empty() {
+                                results.insert(ctx, namespaces);
+                            }
+                        }
+                    }
+                    
+                    log_debug(&format!("Setup sync completed. Found namespaces in {} contexts.", results.len()));
+                    let mut cache_write = cache.write().await;
+                    // Merge results so we don't lose the pre-populated default ones if a context failed
+                    for (ctx, mut namespaces) in results {
+                        if let Some(existing) = cache_write.get(&ctx) {
+                            for ex_ns in existing {
+                                if !namespaces.contains(ex_ns) {
+                                    namespaces.push(ex_ns.clone());
+                                }
+                            }
+                        }
+                        cache_write.insert(ctx, namespaces);
+                    }
+                    
+                    *is_syncing_flag.write().await = false;
+                }
+            });
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
