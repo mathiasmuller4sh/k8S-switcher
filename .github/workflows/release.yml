@@ -58,6 +58,7 @@ jobs:
         uses: mislav/bump-homebrew-formula-action@v3
         with:
           formula-name: k8s-switcher
+          formula-path: Casks/k8s-switcher.rb
           homebrew-tap: mathiasmuller4sh/homebrew-tap
           download-url: https://github.com/mathiasmuller4sh/k8S-switcher/releases/download/v${{ steps.get_version.outputs.VERSION }}/${{ steps.get_dmg.outputs.DMG_NAME }}
           commit-message: "Update k8s-switcher to v${{ steps.get_version.outputs.VERSION }}"
