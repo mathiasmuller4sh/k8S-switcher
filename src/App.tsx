@@ -262,7 +262,7 @@ function App() {
           )}
         </div>
 
-        {isContextSelected && isNamespaceSelected && selectedPod && (
+        {isContextSelected && isNamespaceSelected && selectedPod && activeTab === 'pods' && (
           <>
             <PodResourcePanel
               context={selectedContext}
@@ -274,7 +274,7 @@ function App() {
         )}
         </div>
       </main>
-      {isContextSelected && isNamespaceSelected && selectedPod && (
+      {isContextSelected && isNamespaceSelected && selectedPod && activeTab === 'pods' && (
         <ActionPanel
           context={selectedContext}
           namespace={selectedNamespace}
