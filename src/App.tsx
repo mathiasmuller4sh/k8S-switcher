@@ -8,6 +8,7 @@ import { PvcList } from "./components/k8s/PvcList";
 import { IngressList } from "./components/k8s/IngressList";
 import { EventList } from "./components/k8s/EventList";
 import { CronJobList } from "./components/k8s/CronJobList";
+import { SecretList } from "./components/k8s/SecretList";
 import { AIAnalysisPanel } from "./components/k8s/AIAnalysisPanel";
 import { Pod } from "./hooks/useKubePods";
 import { ActionPanel } from "./components/actions/ActionPanel";
@@ -29,7 +30,7 @@ function App() {
   const [selectedContext, setSelectedContext] = useState<string>("");
   const [selectedNamespace, setSelectedNamespace] = useState<string>("");
   const [selectedPod, setSelectedPod] = useState<Pod | null>(null);
-  const [activeTab, setActiveTab] = useState<'pods' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'ai'>('pods');
+  const [activeTab, setActiveTab] = useState<'pods' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'ai'>('pods');
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -212,6 +213,12 @@ function App() {
                   Events
                 </button>
                 <button 
+                  className={`ui-tab ${activeTab === 'secrets' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('secrets')}
+                >
+                  Secrets
+                </button>
+                <button 
                   className={`ui-tab ${activeTab === 'ai' ? 'active' : ''}`}
                   onClick={() => setActiveTab('ai')}
                   style={{ color: activeTab === 'ai' ? 'white' : 'var(--primary)' }}
@@ -248,6 +255,12 @@ function App() {
               )}
               {activeTab === 'events' && (
                 <EventList
+                  context={selectedContext}
+                  namespace={selectedNamespace}
+                />
+              )}
+              {activeTab === 'secrets' && (
+                <SecretList
                   context={selectedContext}
                   namespace={selectedNamespace}
                 />

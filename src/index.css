@@ -1605,3 +1605,56 @@ body {
 .ui-job-item:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
+
+/* Custom Toggle Switch */
+.ui-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.ui-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ui-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--secondary);
+  transition: .2s;
+  border-radius: 20px;
+}
+
+.ui-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .2s;
+  border-radius: 50%;
+}
+
+input:checked + .ui-switch-slider {
+  background-color: var(--primary);
+}
+
+input:checked + .ui-switch-slider:before {
+  transform: translateX(16px);
+}
+
+.ui-switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

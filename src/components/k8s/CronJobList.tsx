@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeCronJobs, CronJobInfo } from '../../hooks/useKubeCronJobs';
 import { useKubeJobs } from '../../hooks/useKubeJobs';
-import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw } from 'lucide-react';
+import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle } from 'lucide-react';
 import { useActionHistory } from '../../hooks/useActionHistory';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -37,6 +37,22 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
 
   const toggleRow = (name: string) => {
     setExpandedRows(prev => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const handleToggleSuspend = async (cronjob: CronJobInfo, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke('toggle_cronjob_suspend', {
+        context,
+        namespace,
+        cronjobName: cronjob.name,
+        suspend: !cronjob.suspend
+      });
+      handleRefresh();
+    } catch (e) {
+      console.error('Failed to toggle cronjob suspend state', e);
+      alert('Failed to toggle suspend state: ' + e);
+    }
   };
 
   const handleTrigger = async (cronjob: CronJobInfo) => {
@@ -113,6 +129,22 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
     }
   };
 
+  const handleDeleteJob = async (jobName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to stop job ${jobName}?`)) return;
+    try {
+      await invoke('delete_job', {
+        context,
+        namespace,
+        jobName
+      });
+      handleRefresh();
+    } catch (e) {
+      console.error('Failed to delete job', e);
+      alert('Failed to delete job: ' + e);
+    }
+  };
+
   return (
     <Card className={`ui-pod-list-card ${isCollapsed ? 'collapsed' : ''}`}>
       <CardHeader 
@@ -174,10 +206,26 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
                         </span>
                       </div>
                       <div style={{ textAlign: 'center', fontSize: '0.8rem' }}>{cj.schedule}</div>
-                      <div style={{ textAlign: 'center' }}>
-                        <span className={`status-badge ${cj.suspend ? 'terminated' : 'running'}`}>
-                          {cj.suspend ? 'True' : 'False'}
-                        </span>
+                      <div style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="ui-switch-container">
+                          <label className="ui-switch">
+                            <input 
+                              type="checkbox" 
+                              checked={!cj.suspend} 
+                              onChange={(e) => handleToggleSuspend(cj, e as any)}
+                            />
+                            <span className="ui-switch-slider"></span>
+                          </label>
+                          <span 
+                            style={{ 
+                              fontSize: '0.75rem', 
+                              color: cj.suspend ? 'var(--text-muted)' : '#34d399',
+                              transition: 'color 0.2s'
+                            }}
+                          >
+                            {cj.suspend ? 'Suspended' : 'Active'}
+                          </span>
+                        </div>
                       </div>
                       <div style={{ textAlign: 'center', fontSize: '0.8rem' }}>{cj.active}</div>
                       <div style={{ textAlign: 'center', fontSize: '0.8rem' }}>{cj.lastSchedule}</div>
@@ -219,7 +267,28 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
                               <span className={`status-badge status-${job.status.toLowerCase()}`}>{job.status}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{job.startTime}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{job.duration}</span>
-                              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button 
+                                  style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '4px', 
+                                    padding: '4px 10px', 
+                                    borderRadius: '6px', 
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                                    border: '1px solid rgba(239, 68, 68, 0.2)', 
+                                    color: '#ef4444', 
+                                    cursor: 'pointer', 
+                                    fontSize: '0.75rem',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }}
+                                  onClick={(e) => handleDeleteJob(job.name, e)}
+                                  title="Stop Job"
+                                >
+                                  <StopCircle size={14} /> Stop
+                                </button>
                                 <button 
                                   style={{ 
                                     display: 'flex', 

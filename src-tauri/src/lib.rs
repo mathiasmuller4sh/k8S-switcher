@@ -146,6 +146,15 @@ pub struct EventInfo {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretInfo {
+    name: String,
+    secret_type: String,
+    data_count: usize,
+    age: String,
+}
+
+#[derive(Serialize)]
 pub struct CurrentContextInfo {
     context: String,
     namespace: String,
@@ -685,6 +694,95 @@ async fn get_events(context: String, namespace: String) -> Result<Vec<EventInfo>
     Ok(events)
 }
 
+#[tauri::command]
+async fn get_secret_data(context: String, namespace: String, secret_name: String) -> Result<std::collections::HashMap<String, String>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "secret", &secret_name, "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get secret data failed: {}", err));
+        return Err(err);
+    }
+
+    let secret: k8s_openapi::api::core::v1::Secret = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Secret JSON: {}", e))?;
+
+    let mut decoded_data = std::collections::HashMap::new();
+
+    if let Some(data) = secret.data {
+        for (k, v) in data {
+            let decoded_val = String::from_utf8(v.0).unwrap_or_else(|_| "[Binary Data]".to_string());
+            decoded_data.insert(k, decoded_val);
+        }
+    }
+
+    Ok(decoded_data)
+}
+
+#[tauri::command]
+async fn get_secrets(context: String, namespace: String) -> Result<Vec<SecretInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "secrets", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get secrets failed: {}", err));
+        return Err(err);
+    }
+
+    let secret_list: kube::api::ObjectList<k8s_openapi::api::core::v1::Secret> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Secrets JSON: {}", e))?;
+
+    let mut secrets = Vec::new();
+    let now = chrono::Utc::now();
+
+    for secret in secret_list {
+        let name = secret.metadata.name.clone().unwrap_or_default();
+        let secret_type = secret.type_.clone().unwrap_or_else(|| "Opaque".to_string());
+        let data_count = secret.data.as_ref().map(|d| d.len()).unwrap_or(0);
+        
+        let age = if let Some(creation_timestamp) = secret.metadata.creation_timestamp {
+            let ts_str = creation_timestamp.0.to_string();
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                let seconds = duration.num_seconds() % 60;
+
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
+                } else {
+                    format!("{}s", seconds)
+                }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        secrets.push(SecretInfo {
+            name,
+            secret_type,
+            data_count,
+            age,
+        });
+    }
+
+    secrets.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(secrets)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CronJobInfo {
@@ -795,6 +893,46 @@ async fn trigger_cronjob(context: String, namespace: String, cronjob_name: Strin
     }
 
     Ok(job_name)
+}
+
+#[tauri::command]
+async fn toggle_cronjob_suspend(context: String, namespace: String, cronjob_name: String, suspend: bool) -> Result<(), String> {
+    let patch = serde_json::json!({
+        "spec": {
+            "suspend": suspend
+        }
+    });
+    
+    let patch_str = patch.to_string();
+    
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "patch", "cronjob", &cronjob_name, "-p", &patch_str, "--type", "merge"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl patch cronjob failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_job(context: String, namespace: String, job_name: String) -> Result<(), String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "delete", "job", &job_name, "--wait=false"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl delete job failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1416,7 +1554,11 @@ pub fn run() {
             get_ingresses,
             get_events,
             get_cronjobs,
+            get_secrets,
+            get_secret_data,
             trigger_cronjob,
+            toggle_cronjob_suspend,
+            delete_job,
             get_latest_cronjob_job,
             get_jobs,
             execute_brew_upgrade,
