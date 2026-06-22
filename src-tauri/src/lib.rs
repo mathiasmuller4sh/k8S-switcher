@@ -1,14 +1,16 @@
+use chrono::{DateTime, Utc};
 use k8s_openapi::api::core::v1::{Event, PersistentVolumeClaim, Pod};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::config::Kubeconfig;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::process::Command;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::collections::HashMap;
 
 #[derive(Default, Clone)]
 struct SearchCache {
@@ -695,7 +697,23 @@ async fn get_events(context: String, namespace: String) -> Result<Vec<EventInfo>
 }
 
 #[tauri::command]
-async fn get_secret_data(context: String, namespace: String, secret_name: String) -> Result<std::collections::HashMap<String, String>, String> {
+async fn clear_events(context: String, namespace: String) -> Result<String, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "delete", "events", "--all"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl delete events failed: {}", err));
+        return Err(err);
+    }
+
+    Ok("Events cleared successfully".to_string())
+}
+
+#[tauri::command]
+async fn get_secret_data(context: String, namespace: String, secret_name: String) -> Result<HashMap<String, String>, String> {
     let output = kubectl_cmd()
         .args(["--context", &context, "-n", &namespace, "get", "secret", &secret_name, "-o", "json"])
         .output()
@@ -710,7 +728,7 @@ async fn get_secret_data(context: String, namespace: String, secret_name: String
     let secret: k8s_openapi::api::core::v1::Secret = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse Secret JSON: {}", e))?;
 
-    let mut decoded_data = std::collections::HashMap::new();
+    let mut decoded_data = HashMap::new();
 
     if let Some(data) = secret.data {
         for (k, v) in data {
@@ -794,6 +812,16 @@ pub struct CronJobInfo {
     age: String,
 }
 
+#[derive(Serialize)]
+pub struct WorkloadInfo {
+    pub kind: String,
+    pub name: String,
+    pub ready: String,
+    pub up_to_date: String,
+    pub available: String,
+    pub age: String,
+}
+
 #[tauri::command]
 async fn get_cronjobs(context: String, namespace: String) -> Result<Vec<CronJobInfo>, String> {
     let output = kubectl_cmd()
@@ -807,7 +835,7 @@ async fn get_cronjobs(context: String, namespace: String) -> Result<Vec<CronJobI
         return Err(err);
     }
 
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+    let parsed: Value = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse CronJobs JSON: {}", e))?;
 
     let empty_vec = vec![];
@@ -874,6 +902,120 @@ async fn get_cronjobs(context: String, namespace: String) -> Result<Vec<CronJobI
 
     cronjobs.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(cronjobs)
+}
+
+#[tauri::command]
+async fn get_workloads(context: String, namespace: String) -> Result<Vec<WorkloadInfo>, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "get", "deployments,statefulsets,daemonsets", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if err.contains("No resources found") {
+            return Ok(Vec::new());
+        }
+        return Err(err);
+    }
+
+    let json_str = String::from_utf8_lossy(&output.stdout);
+    let v: Value = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {}", e))?;
+    
+    let mut workloads = Vec::new();
+    if let Some(items) = v.get("items").and_then(|i| i.as_array()) {
+        for item in items {
+            let kind = item.get("kind").and_then(|k| k.as_str()).unwrap_or("Unknown").to_string();
+            let name = item.get("metadata").and_then(|m| m.get("name")).and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+            
+            let mut ready = String::from("-");
+            let mut up_to_date = String::from("-");
+            let mut available = String::from("-");
+            
+            let status = item.get("status");
+            let spec = item.get("spec");
+            
+            if kind == "Deployment" || kind == "StatefulSet" {
+                let ready_reps = status.and_then(|s| s.get("readyReplicas")).and_then(|r| r.as_i64()).unwrap_or(0);
+                let desired_reps = spec.and_then(|s| s.get("replicas")).and_then(|r| r.as_i64()).unwrap_or(0);
+                ready = format!("{}/{}", ready_reps, desired_reps);
+                
+                up_to_date = status.and_then(|s| s.get("updatedReplicas")).and_then(|r| r.as_i64()).unwrap_or(0).to_string();
+                available = status.and_then(|s| s.get("availableReplicas")).and_then(|r| r.as_i64()).unwrap_or(0).to_string();
+            } else if kind == "DaemonSet" {
+                let ready_num = status.and_then(|s| s.get("numberReady")).and_then(|r| r.as_i64()).unwrap_or(0);
+                let desired_num = status.and_then(|s| s.get("desiredNumberScheduled")).and_then(|r| r.as_i64()).unwrap_or(0);
+                ready = format!("{}/{}", ready_num, desired_num);
+                
+                up_to_date = status.and_then(|s| s.get("updatedNumberScheduled")).and_then(|r| r.as_i64()).unwrap_or(0).to_string();
+                available = status.and_then(|s| s.get("numberAvailable")).and_then(|r| r.as_i64()).unwrap_or(0).to_string();
+            }
+
+            let age = if let Some(creation_timestamp) = item["metadata"]["creationTimestamp"].as_str() {
+                if let Ok(parsed_time) = DateTime::parse_from_rfc3339(creation_timestamp) {
+                    let duration = Utc::now().signed_duration_since(parsed_time.with_timezone(&Utc));
+                    if duration.num_days() > 0 {
+                        format!("{}d", duration.num_days())
+                    } else if duration.num_hours() > 0 {
+                        format!("{}h", duration.num_hours())
+                    } else if duration.num_minutes() > 0 {
+                        format!("{}m", duration.num_minutes())
+                    } else {
+                        format!("{}s", duration.num_seconds())
+                    }
+                } else {
+                    "Unknown".to_string()
+                }
+            } else {
+                "Unknown".to_string()
+            };
+            
+            workloads.push(WorkloadInfo {
+                kind,
+                name,
+                ready,
+                up_to_date,
+                available,
+                age,
+            });
+        }
+    }
+    
+    Ok(workloads)
+}
+
+#[tauri::command]
+async fn scale_workload(context: String, namespace: String, kind: String, name: String, replicas: i32) -> Result<String, String> {
+    if kind != "Deployment" && kind != "StatefulSet" {
+        return Err("Cannot scale this resource type".to_string());
+    }
+    
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "scale", &kind.to_lowercase(), &name, &format!("--replicas={}", replicas)])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(err);
+    }
+
+    Ok("Scaled successfully".to_string())
+}
+
+#[tauri::command]
+async fn restart_workload(context: String, namespace: String, kind: String, name: String) -> Result<String, String> {
+    let output = kubectl_cmd()
+        .args(["--context", &context, "-n", &namespace, "rollout", "restart", &kind.to_lowercase(), &name])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(err);
+    }
+
+    Ok("Restarted successfully".to_string())
 }
 
 #[tauri::command]
@@ -948,7 +1090,7 @@ async fn get_latest_cronjob_job(context: String, namespace: String, cronjob_name
         return Err(err);
     }
 
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+    let parsed: Value = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse Jobs JSON: {}", e))?;
 
     let empty_vec = vec![];
@@ -1009,7 +1151,7 @@ async fn get_jobs(context: String, namespace: String) -> Result<Vec<JobInfo>, St
         return Err(err);
     }
 
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
+    let parsed: Value = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse Jobs JSON: {}", e))?;
 
     let empty_vec = vec![];
@@ -1090,6 +1232,7 @@ async fn get_jobs(context: String, namespace: String) -> Result<Vec<JobInfo>, St
     jobs.sort_by(|a, b| b.0.cmp(&a.0));
     Ok(jobs.into_iter().map(|(_, j)| j).collect())
 }
+
 #[tauri::command]
 async fn execute_brew_upgrade() -> Result<String, String> {
     let brew_path = if std::path::Path::new("/opt/homebrew/bin/brew").exists() {
@@ -1128,6 +1271,7 @@ async fn execute_brew_upgrade() -> Result<String, String> {
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
+
 #[derive(Serialize)]
 pub struct ContainerMetrics {
     cpu: String,
@@ -1137,7 +1281,7 @@ pub struct ContainerMetrics {
 #[derive(Serialize)]
 pub struct PodMetrics {
     total: ContainerMetrics,
-    containers: std::collections::HashMap<String, ContainerMetrics>,
+    containers: HashMap<String, ContainerMetrics>,
 }
 
 #[tauri::command]
@@ -1168,9 +1312,7 @@ async fn get_pod_metrics(
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
 
-    let mut containers = std::collections::HashMap::new();
-    let _total_cpu = 0.0;
-    let _total_memory = 0.0;
+    let mut containers = HashMap::new();
 
     for line in lines {
         let parts: Vec<&str> = line.split_whitespace().collect();
@@ -1553,9 +1695,13 @@ pub fn run() {
             get_pvcs,
             get_ingresses,
             get_events,
+            clear_events,
             get_cronjobs,
             get_secrets,
             get_secret_data,
+            get_workloads,
+            scale_workload,
+            restart_workload,
             trigger_cronjob,
             toggle_cronjob_suspend,
             delete_job,

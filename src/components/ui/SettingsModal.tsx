@@ -1,4 +1,4 @@
-import { X, Terminal, Info, RefreshCw, DownloadCloud, Check } from 'lucide-react';
+import { X, Terminal, Info, RefreshCw, DownloadCloud, Check, Layout } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { useAutoUpdate } from '../../hooks/useAutoUpdate';
 
@@ -24,8 +24,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
         
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="settings-section">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="settings-section" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', marginBottom: '12px', marginTop: 0 }}>
               <Terminal size={16} /> Terminal Application
             </h3>
             <p className="settings-description">
@@ -56,8 +56,27 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
           </div>
 
-          <div className="settings-section">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="settings-section" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', marginBottom: '12px', marginTop: 0 }}>
+              <Layout size={16} /> User Interface
+            </h3>
+            <p className="settings-description">
+              Customize the look and feel of K8s Switcher.
+            </p>
+            <div className="settings-options" style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={settings.showTopActions}
+                  onChange={(e) => updateSettings({ showTopActions: e.target.checked })}
+                />
+                Show "Recent Actions" history in the Pod Action panel
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-section" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', marginBottom: '12px', marginTop: 0 }}>
               <Info size={16} /> About & Updates
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>

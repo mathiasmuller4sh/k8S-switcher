@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useKubeEvents } from '../../hooks/useKubeEvents';
-import { ChevronDown, ChevronUp, Activity, RefreshCw, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Activity, RefreshCw, Zap, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { invoke } from '@tauri-apps/api/core';
 
 interface EventListProps {
   context: string;
@@ -11,6 +12,20 @@ interface EventListProps {
 export function EventList({ context, namespace }: EventListProps) {
   const { events, loading, refresh, autoRefresh, setAutoRefresh } = useKubeEvents(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClear = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setClearing(true);
+    try {
+      await invoke('clear_events', { context, namespace });
+      refresh();
+    } catch (err) {
+      console.error('Failed to clear events', err);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -40,11 +55,20 @@ export function EventList({ context, namespace }: EventListProps) {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
           <button 
-            className={`ui-header-action-btn ${loading ? 'spinning' : ''}`}
+            className={`ui-header-action-btn ${clearing ? 'spinning' : ''}`}
+            onClick={handleClear}
+            title="Clear Events"
+            disabled={clearing}
+          >
+            <Trash2 size={14} className={clearing ? 'animate-spin' : ''} />
+            <span style={{ fontSize: '0.65rem', fontWeight: 'bold' }}>CLEAR</span>
+          </button>
+          <button 
+            className={`ui-header-action-btn ${loading && !clearing ? 'spinning' : ''}`}
             onClick={refresh}
             title="Refresh Events"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={loading && !clearing ? 'animate-spin' : ''} />
           </button>
           <button 
             className={`ui-header-action-btn ${autoRefresh ? 'active' : ''}`}

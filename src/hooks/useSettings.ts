@@ -2,10 +2,12 @@ import { useState } from 'react';
 
 export interface AppSettings {
   terminalApp: 'Terminal' | 'iTerm';
+  showTopActions: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   terminalApp: 'Terminal',
+  showTopActions: false,
 };
 
 export function useSettings() {

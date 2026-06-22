@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react';
-import { LogsButton } from './LogsButton';
 import { PortForwardButton } from './PortForwardButton';
 import { ShellButton } from './ShellButton';
-import { DescribeButton } from './DescribeButton';
 import { RolloutRestartButton } from './RolloutRestartButton';
-import { AppLogsButton } from './AppLogsButton';
+import { CombinedLogsButton } from './CombinedLogsButton';
 import { RecentActions } from './RecentActions';
+import { useSettings } from '../../hooks/useSettings';
 
 interface ActionPanelProps {
   context: string;
@@ -18,6 +17,7 @@ interface ActionPanelProps {
 
 export function ActionPanel({ context, namespace, podName, podPorts, podLabels }: ActionPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { settings } = useSettings();
 
   if (!podName || !context || !namespace) {
     return null;
@@ -39,17 +39,16 @@ export function ActionPanel({ context, namespace, podName, podPorts, podLabels }
         <div className="ui-action-panel-content">
           <div className="ui-action-buttons">
             <DescribeButton context={context} namespace={namespace} podName={podName} />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <LogsButton context={context} namespace={namespace} podName={podName} />
-              <AppLogsButton context={context} namespace={namespace} labels={podLabels} />
-            </div>
+            <CombinedLogsButton context={context} namespace={namespace} podName={podName} labels={podLabels} />
             <ShellButton context={context} namespace={namespace} podName={podName} />
             <RolloutRestartButton context={context} namespace={namespace} podName={podName} />
             <PortForwardButton context={context} namespace={namespace} podName={podName} podPorts={podPorts} />
           </div>
-          <div className="ui-action-panel-top-actions">
-            <RecentActions isContextSelected={true} namespace={namespace} />
-          </div>
+          {settings.showTopActions && (
+            <div className="ui-action-panel-top-actions">
+              <RecentActions isContextSelected={true} namespace={namespace} />
+            </div>
+          )}
         </div>
       )}
     </div>

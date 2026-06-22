@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeCronJobs, CronJobInfo } from '../../hooks/useKubeCronJobs';
 import { useKubeJobs } from '../../hooks/useKubeJobs';
-import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle } from 'lucide-react';
+import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle, Trash2 } from 'lucide-react';
 import { useActionHistory } from '../../hooks/useActionHistory';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -211,15 +211,15 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
                           <label className="ui-switch">
                             <input 
                               type="checkbox" 
-                              checked={!cj.suspend} 
+                              checked={cj.suspend} 
                               onChange={(e) => handleToggleSuspend(cj, e as any)}
                             />
-                            <span className="ui-switch-slider"></span>
+                            <span className="ui-switch-slider" style={{ backgroundColor: cj.suspend ? '#fbbf24' : 'rgba(255, 255, 255, 0.2)' }}></span>
                           </label>
                           <span 
                             style={{ 
                               fontSize: '0.75rem', 
-                              color: cj.suspend ? 'var(--text-muted)' : '#34d399',
+                              color: cj.suspend ? '#fbbf24' : '#34d399',
                               transition: 'color 0.2s'
                             }}
                           >
@@ -267,28 +267,30 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
                               <span className={`status-badge status-${job.status.toLowerCase()}`}>{job.status}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{job.startTime}</span>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{job.duration}</span>
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button 
-                                  style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: '4px', 
-                                    padding: '4px 10px', 
-                                    borderRadius: '6px', 
-                                    backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-                                    border: '1px solid rgba(239, 68, 68, 0.2)', 
-                                    color: '#ef4444', 
-                                    cursor: 'pointer', 
-                                    fontSize: '0.75rem',
-                                    transition: 'all 0.2s'
-                                  }}
-                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }}
-                                  onClick={(e) => handleDeleteJob(job.name, e)}
-                                  title="Stop Job"
-                                >
-                                  <StopCircle size={14} /> Stop
-                                </button>
+                                
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                  <button 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: '4px', 
+                                      padding: '4px 10px', 
+                                      borderRadius: '6px', 
+                                      backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                                      border: '1px solid rgba(239, 68, 68, 0.2)', 
+                                      color: '#ef4444', 
+                                      cursor: 'pointer', 
+                                      fontSize: '0.75rem',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }}
+                                    onClick={(e) => handleDeleteJob(job.name, e)}
+                                    title={job.status.toLowerCase() === 'running' || job.status.toLowerCase() === 'pending' ? "Stop Job" : "Delete Job"}
+                                  >
+                                    {job.status.toLowerCase() === 'running' || job.status.toLowerCase() === 'pending' ? <StopCircle size={14} /> : <Trash2 size={14} />} 
+                                    {job.status.toLowerCase() === 'running' || job.status.toLowerCase() === 'pending' ? "Stop" : "Delete"}
+                                  </button>
                                 <button 
                                   style={{ 
                                     display: 'flex', 

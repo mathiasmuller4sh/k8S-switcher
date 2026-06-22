@@ -9,6 +9,7 @@ import { IngressList } from "./components/k8s/IngressList";
 import { EventList } from "./components/k8s/EventList";
 import { CronJobList } from "./components/k8s/CronJobList";
 import { SecretList } from "./components/k8s/SecretList";
+import { WorkloadList } from "./components/k8s/WorkloadList";
 import { AIAnalysisPanel } from "./components/k8s/AIAnalysisPanel";
 import { Pod } from "./hooks/useKubePods";
 import { ActionPanel } from "./components/actions/ActionPanel";
@@ -159,8 +160,8 @@ function App() {
           </div>
         )}
 
-        <div className="scrollable-content-area">
-          <div className="pod-section">
+        <div className="scrollable-content-area" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="pod-section" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
             {!isContextSelected && (
             <ClusterSelector
               selected={selectedContext}
@@ -189,16 +190,10 @@ function App() {
                   Pods
                 </button>
                 <button 
-                  className={`ui-tab ${activeTab === 'pvcs' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('pvcs')}
+                  className={`ui-tab ${activeTab === 'deployments' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('deployments')}
                 >
-                  PVCs
-                </button>
-                <button 
-                  className={`ui-tab ${activeTab === 'ingresses' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('ingresses')}
-                >
-                  Ingresses
+                  Workloads
                 </button>
                 <button 
                   className={`ui-tab ${activeTab === 'cronjobs' ? 'active' : ''}`}
@@ -219,6 +214,18 @@ function App() {
                   Secrets
                 </button>
                 <button 
+                  className={`ui-tab ${activeTab === 'pvcs' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('pvcs')}
+                >
+                  PVCs
+                </button>
+                <button 
+                  className={`ui-tab ${activeTab === 'ingresses' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('ingresses')}
+                >
+                  Ingresses
+                </button>
+                <button 
                   className={`ui-tab ${activeTab === 'ai' ? 'active' : ''}`}
                   onClick={() => setActiveTab('ai')}
                   style={{ color: activeTab === 'ai' ? 'white' : 'var(--primary)' }}
@@ -234,6 +241,9 @@ function App() {
                   selectedPod={selectedPod?.name ?? ""}
                   onSelectPod={setSelectedPod}
                 />
+              )}
+              {activeTab === 'deployments' && (
+                <WorkloadList context={selectedContext} namespace={selectedNamespace} />
               )}
               {activeTab === 'pvcs' && (
                 <PvcList
