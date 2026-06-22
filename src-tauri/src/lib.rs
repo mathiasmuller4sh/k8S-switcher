@@ -308,15 +308,60 @@ async fn get_pods(context: String, namespace: String) -> Result<Vec<PodInfo>, St
 
         let (image, ports, containers) = if let Some(spec) = pod.spec {
             let cs = spec.containers;
-            let img = cs
-                .first()
-                .map(|c| c.image.clone().unwrap_or_default())
+            
+            let is_sidecar = |name: &str| {
+                let n = name.to_lowercase();
+                n.contains("exporter") || n.contains("proxy") || n.contains("sidecar") || n.contains("agent") || n.contains("mesh") || n.contains("fluent") || n.contains("promtail") || n.contains("istio")
+            };
+
+            let primary_container = cs.iter().find(|c| c.ports.is_some() && !is_sidecar(&c.name))
+                .or_else(|| cs.iter().find(|c| !is_sidecar(&c.name)))
+                .or_else(|| cs.iter().find(|c| c.ports.is_some()))
+                .or_else(|| cs.first());
+
+            let img = primary_container
+                .and_then(|c| c.image.clone())
                 .unwrap_or_default();
-            let pts: Vec<u16> = cs
-                .iter()
-                .flat_map(|c| c.ports.iter().flatten())
-                .filter_map(|p| p.container_port.try_into().ok())
-                .collect();
+                
+            let mut pts: Vec<u16> = Vec::new();
+            
+            // 1. Primary container ports first
+            if let Some(pc) = primary_container {
+                if let Some(ports) = &pc.ports {
+                    for p in ports {
+                        if let Ok(port) = p.container_port.try_into() {
+                            if !pts.contains(&port) {
+                                pts.push(port);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 2. Add other containers' ports
+            for c in &cs {
+                if let Some(ports) = &c.ports {
+                    for p in ports {
+                        if let Ok(port) = p.container_port.try_into() {
+                            if !pts.contains(&port) {
+                                pts.push(port);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 3. Guess port from image if no ports are defined
+            if pts.is_empty() {
+                let img_lower = img.to_lowercase();
+                if img_lower.contains("mongo") { pts.push(27017); }
+                else if img_lower.contains("postgres") { pts.push(5432); }
+                else if img_lower.contains("redis") { pts.push(6379); }
+                else if img_lower.contains("mysql") || img_lower.contains("mariadb") { pts.push(3306); }
+                else if img_lower.contains("rabbitmq") { pts.push(5672); }
+                else if img_lower.contains("elasticsearch") { pts.push(9200); }
+                else if img_lower.contains("nginx") || img_lower.contains("httpd") || img_lower.contains("caddy") { pts.push(80); }
+            }
 
             let mut resources: Vec<ContainerResources> = Vec::new();
 
@@ -916,7 +961,7 @@ async fn execute_brew_upgrade() -> Result<String, String> {
     };
 
     let output = std::process::Command::new(brew_path)
-        .args(["upgrade", "--cask", "k8s-switcher"])
+        .args(["upgrade", "--cask", "mathiasmuller4sh/tap/k8s-switcher"])
         .output()
         .map_err(|e| format!("Failed to execute brew upgrade: {}", e))?;
 
