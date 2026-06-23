@@ -101,7 +101,7 @@ function App() {
       </header>
 
       {updateInfo?.available && !updateSuccess && (
-        <div style={{ backgroundColor: 'var(--primary-color)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+        <div style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <DownloadCloud size={16} />
             <span>Update Available: Version {updateInfo.latestVersion} is ready to install!</span>
@@ -111,7 +111,7 @@ function App() {
             <button 
               onClick={applyUpdate}
               disabled={isUpdating}
-              style={{ backgroundColor: 'white', color: 'var(--primary-color)', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: isUpdating ? 'wait' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ backgroundColor: 'white', color: 'var(--primary)', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: isUpdating ? 'wait' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               {isUpdating ? <RefreshCcw size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
               {isUpdating ? 'Updating via Brew...' : 'Update Now'}

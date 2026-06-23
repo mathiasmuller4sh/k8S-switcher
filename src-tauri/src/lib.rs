@@ -1434,7 +1434,7 @@ fn open_logs(context: String, namespace: String, pod_name: String, terminal_app:
 #[tauri::command]
 fn open_logs_by_label(context: String, namespace: String, label_selector: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
-        "kubectl --context {} -n {} logs -l {} -f --tail=100 --prefix",
+        "kubectl --context {} -n {} logs -l {} --max-log-requests=50 -f --tail=100 --prefix",
         context, namespace, label_selector
     );
     let script = get_terminal_script(terminal_app, &kubectl_cmd);

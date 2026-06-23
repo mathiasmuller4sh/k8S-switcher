@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { DescribeButton } from './DescribeButton';
 import { PortForwardButton } from './PortForwardButton';
 import { ShellButton } from './ShellButton';
 import { RolloutRestartButton } from './RolloutRestartButton';

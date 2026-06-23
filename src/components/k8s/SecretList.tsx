@@ -16,6 +16,7 @@ export function SecretList({ context, namespace }: SecretListProps) {
   const [expandedSecret, setExpandedSecret] = useState<string | null>(null);
   const [secretData, setSecretData] = useState<Record<string, string> | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [filterText, setFilterText] = useState('');
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -76,6 +77,22 @@ export function SecretList({ context, namespace }: SecretListProps) {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+          <input 
+            type="text" 
+            placeholder="Filter secrets..." 
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            style={{ 
+              padding: '4px 8px', 
+              borderRadius: '4px', 
+              border: '1px solid rgba(255, 255, 255, 0.1)', 
+              background: 'rgba(0, 0, 0, 0.2)', 
+              color: 'var(--text-color)',
+              fontSize: '0.8rem',
+              outline: 'none',
+              width: '150px'
+            }}
+          />
           <button 
             className={`ui-header-action-btn ${loading ? 'spinning' : ''}`}
             onClick={refresh}
@@ -90,7 +107,7 @@ export function SecretList({ context, namespace }: SecretListProps) {
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="ui-pvc-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-pvc-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {secrets.map((secret) => (
+              {secrets.filter(s => s.name.toLowerCase().includes(filterText.toLowerCase())).map((secret) => (
                 <div key={secret.name} style={{ display: 'flex', flexDirection: 'column' }}>
                   <div className="ui-pvc-item" style={{ gridTemplateColumns: '1fr 100px 80px 140px', borderBottom: expandedSecret === secret.name ? 'none' : undefined }}>
                     <div className="ui-pvc-name-block">
