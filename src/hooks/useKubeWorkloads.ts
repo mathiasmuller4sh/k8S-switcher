@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 export interface WorkloadInfo {
-  kind: String;
+  kind: string;
   name: string;
   ready: string;
   up_to_date: string;

@@ -31,7 +31,7 @@ function App() {
   const [selectedContext, setSelectedContext] = useState<string>("");
   const [selectedNamespace, setSelectedNamespace] = useState<string>("");
   const [selectedPod, setSelectedPod] = useState<Pod | null>(null);
-  const [activeTab, setActiveTab] = useState<'pods' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'ai'>('pods');
+  const [activeTab, setActiveTab] = useState<'pods' | 'workloads' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'ai'>('pods');
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -190,8 +190,8 @@ function App() {
                   Pods
                 </button>
                 <button 
-                  className={`ui-tab ${activeTab === 'deployments' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('deployments')}
+                  className={`ui-tab ${activeTab === 'workloads' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('workloads')}
                 >
                   Workloads
                 </button>
@@ -242,7 +242,7 @@ function App() {
                   onSelectPod={setSelectedPod}
                 />
               )}
-              {activeTab === 'deployments' && (
+              {activeTab === 'workloads' && (
                 <WorkloadList context={selectedContext} namespace={selectedNamespace} />
               )}
               {activeTab === 'pvcs' && (

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type ActionType = 'Logs' | 'Shell' | 'PortForward' | 'Describe';
+export type ActionType = 'Logs' | 'Shell' | 'PortForward' | 'Describe' | 'Scale' | 'Restart';
 
 export interface ActionRecord {
   id: string;

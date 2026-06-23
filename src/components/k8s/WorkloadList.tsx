@@ -221,7 +221,7 @@ export function WorkloadList({ context, namespace }: WorkloadListProps) {
                                 <span className={`status-badge status-${pod.status.toLowerCase()}`}>{pod.status}</span>
                               </span>
                               <span style={{ flex: '1', color: 'var(--text-muted)' }}>{pod.age}</span>
-                              <span style={{ flex: '1', color: 'var(--text-muted)', textAlign: 'right' }}>Restarts: {pod.restarts}</span>
+                              <span style={{ flex: '1', color: 'var(--text-muted)', textAlign: 'right' }}></span>
                            </div>
                         )) : (
                            <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>No running pods found for this workload.</div>
