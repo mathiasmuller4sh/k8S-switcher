@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { TerminalSquare, ChevronDown, Layers } from 'lucide-react';
+import { TerminalSquare, ChevronDown, Layers, Cloud } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useSettings } from '../../hooks/useSettings';
 import { useActionHistory } from '../../hooks/useActionHistory';
 
@@ -64,6 +65,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
     });
 
     return {
+      key: bestMatch.key,
       selector: `${bestMatch.key}=${bestMatch.value}`,
       value: bestMatch.value
     };
@@ -83,6 +85,30 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
       });
     } catch (error) {
       console.error('Failed to open app logs', error);
+    }
+  };
+
+  const handleOpenGCPLogs = async () => {
+    setIsOpen(false);
+    
+    const namespaceQuery = `resource.labels.namespace_name="${namespace}"`;
+    let appQuery = '';
+    
+    if (appInfo) {
+      // Always try to use k8s-pod/app if we found an app-like label, or use the key we found
+      const labelKey = appInfo.key === 'app' ? 'app' : appInfo.key;
+      appQuery = `\nlabels."k8s-pod/${labelKey}"="${appInfo.value}"`;
+    } else {
+      appQuery = `\nresource.labels.pod_name="${podName}"`;
+    }
+
+    const query = `${namespaceQuery}${appQuery}`;
+    const url = `https://console.cloud.google.com/logs/query;query=${encodeURIComponent(query)};timeRange=PT1H`;
+    
+    try {
+      await openUrl(url);
+    } catch (e) {
+      console.error('Failed to open GCP logs URL', e);
     }
   };
 
@@ -147,6 +173,22 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
               <Layers size={14} /> Tag ({appInfo.value})
             </button>
           )}
+
+          <div style={{ height: '1px', backgroundColor: '#313244', margin: '2px 0' }}></div>
+          
+          <button 
+            onClick={handleOpenGCPLogs}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '6px 10px', width: '100%', textAlign: 'left',
+              borderRadius: '4px', border: 'none', background: 'transparent',
+              color: '#cdd6f4', cursor: 'pointer', fontSize: '0.8rem'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <Cloud size={14} /> GCP Logs
+          </button>
         </div>
       )}
     </div>
