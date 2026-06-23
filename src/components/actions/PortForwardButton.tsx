@@ -13,17 +13,26 @@ interface PortForwardButtonProps {
 }
 
 export function PortForwardButton({ context, namespace, podName, podPorts }: PortForwardButtonProps) {
-  const firstPort = podPorts.length > 0 ? String(podPorts[0]) : '8080';
+  const getDefaultPort = (ports: number[]) => {
+    if (ports.length === 0) return '8080';
+    const preferredPorts = [8080, 80, 3000, 4200, 5000, 8000, 9000, 443];
+    for (const pref of preferredPorts) {
+      if (ports.includes(pref)) return String(pref);
+    }
+    return String(ports[0]);
+  };
+
+  const initialPort = getDefaultPort(podPorts);
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const { settings } = useSettings();
-  const [localPort, setLocalPort] = useState(firstPort);
-  const [podPort, setPodPort] = useState(firstPort);
+  const [localPort, setLocalPort] = useState(initialPort);
+  const [podPort, setPodPort] = useState(initialPort);
   const { addAction } = useActionHistory();
   
   // Reset ports when pod changes
   React.useEffect(() => {
-    const p = podPorts.length > 0 ? String(podPorts[0]) : '8080';
+    const p = getDefaultPort(podPorts);
     setLocalPort(p);
     setPodPort(p);
     setIsActive(false);

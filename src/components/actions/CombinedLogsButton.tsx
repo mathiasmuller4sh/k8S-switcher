@@ -104,9 +104,9 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
       {isOpen && (
         <div style={{
           position: 'absolute',
-          top: '100%',
+          bottom: '100%',
           left: 0,
-          marginTop: '4px',
+          marginBottom: '4px',
           backgroundColor: '#1e1e2e',
           border: '1px solid #313244',
           borderRadius: '6px',
