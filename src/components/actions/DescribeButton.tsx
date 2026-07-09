@@ -8,18 +8,20 @@ interface DescribeButtonProps {
   context: string;
   namespace: string;
   podName: string;
+  kind?: string;
 }
 
-export function DescribeButton({ context, namespace, podName }: DescribeButtonProps) {
+export function DescribeButton({ context, namespace, podName, kind }: DescribeButtonProps) {
   const { addAction } = useActionHistory();
   const { settings } = useSettings();
 
-  const handleDescribe = async () => {
+  const handleDescribe = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
-      await invoke('open_describe', { context, namespace, podName , terminalApp: settings.terminalApp });
+      await invoke('open_describe', { context, namespace, podName, kind, terminalApp: settings.terminalApp });
       addAction({ type: 'Describe', context, namespace, podName });
     } catch (error) {
-      console.error('Failed to describe pod', error);
+      console.error('Failed to describe', error);
     }
   };
 

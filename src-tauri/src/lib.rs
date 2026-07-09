@@ -1412,10 +1412,11 @@ fn open_terminal(context: String, namespace: String, terminal_app: Option<String
 }
 
 #[tauri::command]
-fn open_describe(context: String, namespace: String, pod_name: String, terminal_app: Option<String>) -> Result<(), String> {
+fn open_describe(context: String, namespace: String, pod_name: String, kind: Option<String>, terminal_app: Option<String>) -> Result<(), String> {
+    let kind_str = kind.unwrap_or_else(|| "pod".to_string());
     let kubectl_cmd = format!(
-        "kubectl --context {} -n {} describe pod {}",
-        context, namespace, pod_name
+        "kubectl --context {} -n {} describe {} {}",
+        context, namespace, kind_str, pod_name
     );
     let script = get_terminal_script(terminal_app, &kubectl_cmd);
     execute_terminal_script(&script)

@@ -1539,7 +1539,7 @@ body {
 
 .ui-cronjob-list-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 1fr 80px;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 1fr 100px;
   gap: 16px;
   align-items: center;
   padding: 8px 12px;
@@ -1558,7 +1558,7 @@ body {
 
 .ui-cronjob-item {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 1fr 80px;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 1fr 100px;
   gap: 16px;
   align-items: center;
   padding: 10px 12px;

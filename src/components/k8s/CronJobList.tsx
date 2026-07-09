@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeCronJobs, CronJobInfo } from '../../hooks/useKubeCronJobs';
 import { useKubeJobs } from '../../hooks/useKubeJobs';
-import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle, Trash2 } from 'lucide-react';
+import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle, Trash2, FileText } from 'lucide-react';
 import { useActionHistory } from '../../hooks/useActionHistory';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -145,6 +145,25 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
     }
   };
 
+  const handleDescribe = async (cronjob: CronJobInfo) => {
+    try {
+      await invoke('open_describe', { 
+        context, 
+        namespace, 
+        podName: cronjob.name, 
+        kind: 'cronjob' 
+      });
+      addAction({
+        type: 'Describe',
+        context,
+        namespace,
+        podName: cronjob.name
+      });
+    } catch (e) {
+      console.error('Failed to describe cronjob', e);
+    }
+  };
+
   return (
     <Card className={`ui-pod-list-card ${isCollapsed ? 'collapsed' : ''}`}>
       <CardHeader 
@@ -244,6 +263,13 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
                           title="Follow logs of latest job"
                         >
                           <TerminalSquare size={16} />
+                        </button>
+                        <button 
+                          className="ui-action-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleDescribe(cj); }}
+                          title="Describe CronJob"
+                        >
+                          <FileText size={16} />
                         </button>
                       </div>
                     </div>
