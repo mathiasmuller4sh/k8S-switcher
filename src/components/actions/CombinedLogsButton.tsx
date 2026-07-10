@@ -15,6 +15,9 @@ interface CombinedLogsButtonProps {
 
 export function CombinedLogsButton({ context, namespace, podName, labels }: CombinedLogsButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [defaultAction, setDefaultAction] = useState(() => {
+    return localStorage.getItem('k8switcher-last-log-action') || 'pod';
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { addAction } = useActionHistory();
   const { settings } = useSettings();
@@ -28,16 +31,6 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleOpenPodLogs = async () => {
-    setIsOpen(false);
-    try {
-      await invoke('open_logs', { context, namespace, podName, terminalApp: settings.terminalApp });
-      addAction({ type: 'Logs', context, namespace, podName });
-    } catch (error) {
-      console.error('Failed to open logs', error);
-    }
-  };
 
   const getAppSelector = () => {
     const ignoredKeys = [
@@ -73,65 +66,103 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
 
   const appInfo = getAppSelector();
 
-  const handleOpenAppLogs = async () => {
+  const executeAction = async (actionId: string) => {
+    if (actionId === 'app' && !appInfo) {
+      actionId = 'pod';
+    }
+
+    setDefaultAction(actionId);
+    localStorage.setItem('k8switcher-last-log-action', actionId);
     setIsOpen(false);
-    if (!appInfo) return;
+
     try {
-      await invoke('open_logs_by_label', { 
-        context, 
-        namespace, 
-        labelSelector: appInfo.selector,
-        terminalApp: settings.terminalApp 
-      });
+      if (actionId === 'pod') {
+        await invoke('open_logs', { context, namespace, podName, terminalApp: settings.terminalApp });
+        addAction({ type: 'Logs', context, namespace, podName });
+      } else if (actionId === 'app' && appInfo) {
+        await invoke('open_logs_by_label', { 
+          context, 
+          namespace, 
+          labelSelector: appInfo.selector,
+          terminalApp: settings.terminalApp 
+        });
+      } else if (actionId === 'gcp') {
+        const namespaceQuery = `resource.labels.namespace_name="${namespace}"`;
+        let appQuery = '';
+        
+        if (appInfo) {
+          const labelKey = appInfo.key === 'app' ? 'app' : appInfo.key;
+          appQuery = `\nlabels."k8s-pod/${labelKey}"="${appInfo.value}"`;
+        } else {
+          appQuery = `\nresource.labels.pod_name="${podName}"`;
+        }
+
+        const query = `${namespaceQuery}${appQuery}`;
+        const url = `https://console.cloud.google.com/logs/query;query=${encodeURIComponent(query)};timeRange=PT1H`;
+        
+        await openUrl(url);
+      }
     } catch (error) {
-      console.error('Failed to open app logs', error);
+      console.error(`Failed to execute log action ${actionId}`, error);
     }
   };
 
-  const handleOpenGCPLogs = async () => {
-    setIsOpen(false);
-    
-    const namespaceQuery = `resource.labels.namespace_name="${namespace}"`;
-    let appQuery = '';
-    
-    if (appInfo) {
-      // Always try to use k8s-pod/app if we found an app-like label, or use the key we found
-      const labelKey = appInfo.key === 'app' ? 'app' : appInfo.key;
-      appQuery = `\nlabels."k8s-pod/${labelKey}"="${appInfo.value}"`;
-    } else {
-      appQuery = `\nresource.labels.pod_name="${podName}"`;
-    }
+  const getDefaultIcon = () => {
+    const action = (defaultAction === 'app' && !appInfo) ? 'pod' : defaultAction;
+    if (action === 'app') return <Layers size={14} />;
+    if (action === 'gcp') return <Cloud size={14} />;
+    return <TerminalSquare size={14} />;
+  };
 
-    const query = `${namespaceQuery}${appQuery}`;
-    const url = `https://console.cloud.google.com/logs/query;query=${encodeURIComponent(query)};timeRange=PT1H`;
-    
-    try {
-      await openUrl(url);
-    } catch (e) {
-      console.error('Failed to open GCP logs URL', e);
-    }
+  const getDefaultLabel = () => {
+    const action = (defaultAction === 'app' && !appInfo) ? 'pod' : defaultAction;
+    if (action === 'app') return 'Tag';
+    if (action === 'gcp') return 'GCP';
+    return 'Log';
   };
 
   return (
     <div className="ui-dropdown-container" ref={dropdownRef} style={{ position: 'relative', display: 'flex', flex: 1 }}>
-      <Button 
-        variant="secondary" 
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={!podName}
-        icon={<TerminalSquare size={16} />}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-          <span>Logs</span>
+      <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+        <Button 
+          variant="secondary" 
+          onClick={(e) => { e.stopPropagation(); executeAction(defaultAction); }}
+          disabled={!podName}
+          icon={getDefaultIcon()}
+          style={{ 
+            flex: 3, 
+            minWidth: 0,
+            borderTopRightRadius: 0, 
+            borderBottomRightRadius: 0, 
+            borderRight: '1px solid rgba(0,0,0,0.3)',
+            paddingLeft: '8px',
+            paddingRight: '8px'
+          }}
+        >
+          {getDefaultLabel()}
+        </Button>
+        <Button 
+          variant="secondary" 
+          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          disabled={!podName}
+          style={{ 
+            flex: 1,
+            minWidth: 0,
+            borderTopLeftRadius: 0, 
+            borderBottomLeftRadius: 0, 
+            paddingLeft: '6px',
+            paddingRight: '6px'
+          }}
+        >
           <ChevronDown size={14} />
-        </div>
-      </Button>
+        </Button>
+      </div>
       
       {isOpen && (
         <div style={{
           position: 'absolute',
           bottom: '100%',
-          left: 0,
+          right: 0,
           marginBottom: '4px',
           backgroundColor: '#1e1e2e',
           border: '1px solid #313244',
@@ -145,7 +176,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
         }}>
           <button 
-            onClick={handleOpenPodLogs}
+            onClick={(e) => { e.stopPropagation(); executeAction('pod'); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '6px 10px', width: '100%', textAlign: 'left',
@@ -160,7 +191,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
           
           {appInfo && (
             <button 
-              onClick={handleOpenAppLogs}
+              onClick={(e) => { e.stopPropagation(); executeAction('app'); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '6px 10px', width: '100%', textAlign: 'left',
@@ -177,7 +208,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
           <div style={{ height: '1px', backgroundColor: '#313244', margin: '2px 0' }}></div>
           
           <button 
-            onClick={handleOpenGCPLogs}
+            onClick={(e) => { e.stopPropagation(); executeAction('gcp'); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '6px 10px', width: '100%', textAlign: 'left',
