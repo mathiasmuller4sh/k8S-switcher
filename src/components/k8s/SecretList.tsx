@@ -105,7 +105,7 @@ export function SecretList({ context, namespace }: SecretListProps) {
       
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div className="ui-pvc-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div className="ui-pvc-list" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="ui-pvc-list-content" style={{ flex: 1, overflowY: 'auto' }}>
               {secrets.filter(s => s.name.toLowerCase().includes(filterText.toLowerCase())).map((secret) => (
                 <div key={secret.name} style={{ display: 'flex', flexDirection: 'column' }}>

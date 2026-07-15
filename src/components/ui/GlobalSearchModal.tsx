@@ -18,6 +18,7 @@ export function GlobalSearchModal({ onClose, onSelect }: GlobalSearchModalProps)
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [favorites, setFavorites] = useState<Record<string, string[]>>({});
+  const [recents, setRecents] = useState<SearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,11 +42,38 @@ export function GlobalSearchModal({ onClose, onSelect }: GlobalSearchModalProps)
       setFavorites(favs);
     };
 
+    const loadRecents = () => {
+      try {
+        const stored = localStorage.getItem("k8s-switcher-recent-namespaces");
+        if (stored) {
+          setRecents(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error("Error loading recents from localStorage", e);
+      }
+    };
+
     loadFavorites();
+    loadRecents();
   }, []);
 
   const isNamespaceFavorite = (context: string, namespace: string) => {
     return favorites[context]?.includes(namespace) ?? false;
+  };
+
+  const handleSelect = (context: string, namespace: string) => {
+    setRecents(prev => {
+      const newRecents = [{ context, namespace }, ...prev.filter(r => r.context !== context || r.namespace !== namespace)].slice(0, 5);
+      try {
+        localStorage.setItem("k8s-switcher-recent-namespaces", JSON.stringify(newRecents));
+      } catch (e) {
+        console.error("Error saving recents", e);
+      }
+      return newRecents;
+    });
+    
+    onSelect(context, namespace);
+    onClose();
   };
 
   const handleToggleFavorite = (e: React.MouseEvent, context: string, namespace: string) => {
@@ -85,6 +113,58 @@ export function GlobalSearchModal({ onClose, onSelect }: GlobalSearchModalProps)
     // Fallback to context if namespace is the same
     return a.context.localeCompare(b.context);
   });
+
+  const starredResults = Object.entries(favorites).flatMap(([context, namespaces]) => 
+    namespaces.map(namespace => ({ context, namespace }))
+  ).sort((a, b) => {
+    const nsCompare = a.namespace.localeCompare(b.namespace);
+    if (nsCompare !== 0) return nsCompare;
+    return a.context.localeCompare(b.context);
+  });
+
+  const handleRemoveRecent = (e: React.MouseEvent, context: string, namespace: string) => {
+    e.stopPropagation();
+    setRecents(prev => {
+      const newRecents = prev.filter(r => r.context !== context || r.namespace !== namespace);
+      try {
+        localStorage.setItem("k8s-switcher-recent-namespaces", JSON.stringify(newRecents));
+      } catch (err) {
+        console.error("Error saving recents", err);
+      }
+      return newRecents;
+    });
+  };
+
+  const renderResultItem = (r: SearchResult, index: number, prefix: string) => (
+    <li 
+      key={`${prefix}-${r.context}-${r.namespace}-${index}`}
+      className="search-result-item"
+      onClick={() => handleSelect(r.context, r.namespace)}
+    >
+      <div className="search-result-main-line">
+        <div className="result-namespace">{r.namespace}</div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {prefix === 'recent' && (
+            <span 
+              className="search-result-favorite-btn"
+              onClick={(e) => handleRemoveRecent(e, r.context, r.namespace)}
+              title="Remove from recents"
+            >
+              <X size={14} />
+            </span>
+          )}
+          <span 
+            className={`search-result-favorite-btn ${isNamespaceFavorite(r.context, r.namespace) ? 'active' : ''}`}
+            onClick={(e) => handleToggleFavorite(e, r.context, r.namespace)}
+            title={isNamespaceFavorite(r.context, r.namespace) ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Star size={14} fill={isNamespaceFavorite(r.context, r.namespace) ? "currentColor" : "none"} />
+          </span>
+        </div>
+      </div>
+      <div className="result-context">{r.context}</div>
+    </li>
+  );
 
   useEffect(() => {
     // Focus input on mount
@@ -165,34 +245,37 @@ export function GlobalSearchModal({ onClose, onSelect }: GlobalSearchModalProps)
         </div>
         
         <div className="search-modal-body">
-          {sortedResults.length === 0 ? (
+          {query === "" ? (
+            <>
+              {recents.length > 0 && (
+                <>
+                  <div className="search-section-title">Recent</div>
+                  <ul className="search-results-list">
+                    {recents.map((r, i) => renderResultItem(r, i, 'recent'))}
+                  </ul>
+                </>
+              )}
+              {starredResults.length > 0 && (
+                <>
+                  <div className="search-section-title">Starred</div>
+                  <ul className="search-results-list">
+                    {starredResults.map((r, i) => renderResultItem(r, i, 'starred'))}
+                  </ul>
+                </>
+              )}
+              {recents.length === 0 && starredResults.length === 0 && (
+                <div className="search-empty-state">
+                  Type to search namespaces...
+                </div>
+              )}
+            </>
+          ) : sortedResults.length === 0 ? (
             <div className="search-empty-state">
               No namespaces found matching "{query}"
             </div>
           ) : (
             <ul className="search-results-list">
-              {sortedResults.map((r, i) => (
-                <li 
-                  key={`${r.context}-${r.namespace}-${i}`}
-                  className="search-result-item"
-                  onClick={() => {
-                    onSelect(r.context, r.namespace);
-                    onClose();
-                  }}
-                >
-                  <div className="search-result-main-line">
-                    <div className="result-namespace">{r.namespace}</div>
-                    <span 
-                      className={`search-result-favorite-btn ${isNamespaceFavorite(r.context, r.namespace) ? 'active' : ''}`}
-                      onClick={(e) => handleToggleFavorite(e, r.context, r.namespace)}
-                      title={isNamespaceFavorite(r.context, r.namespace) ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      <Star size={14} fill={isNamespaceFavorite(r.context, r.namespace) ? "currentColor" : "none"} />
-                    </span>
-                  </div>
-                  <div className="result-context">{r.context}</div>
-                </li>
-              ))}
+              {sortedResults.map((r, i) => renderResultItem(r, i, 'search'))}
             </ul>
           )}
         </div>

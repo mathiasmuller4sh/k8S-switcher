@@ -59,6 +59,16 @@ function App() {
   const handleNamespaceChange = (namespace: string) => {
     setSelectedNamespace(namespace);
     setSelectedPod(null);
+    
+    // Add to recents
+    try {
+      const stored = localStorage.getItem("k8s-switcher-recent-namespaces");
+      const prev = stored ? JSON.parse(stored) : [];
+      const newRecents = [{ context: selectedContext, namespace }, ...prev.filter((r: any) => r.context !== selectedContext || r.namespace !== namespace)].slice(0, 5);
+      localStorage.setItem("k8s-switcher-recent-namespaces", JSON.stringify(newRecents));
+    } catch (e) {
+      console.error("Error saving recents", e);
+    }
   };
 
   const handleDragStart = (e: React.MouseEvent) => {
