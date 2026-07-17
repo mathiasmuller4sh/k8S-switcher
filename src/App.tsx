@@ -10,7 +10,7 @@ import { EventList } from "./components/k8s/EventList";
 import { CronJobList } from "./components/k8s/CronJobList";
 import { SecretList } from "./components/k8s/SecretList";
 import { WorkloadList } from "./components/k8s/WorkloadList";
-import { AIAnalysisPanel } from "./components/k8s/AIAnalysisPanel";
+import { ArgoCDPanel } from "./components/k8s/ArgoCDPanel";
 import { Pod } from "./hooks/useKubePods";
 import { ActionPanel } from "./components/actions/ActionPanel";
 import { PodResourcePanel } from "./components/k8s/PodResourcePanel";
@@ -31,7 +31,7 @@ function App() {
   const [selectedContext, setSelectedContext] = useState<string>("");
   const [selectedNamespace, setSelectedNamespace] = useState<string>("");
   const [selectedPod, setSelectedPod] = useState<Pod | null>(null);
-  const [activeTab, setActiveTab] = useState<'pods' | 'workloads' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'ai'>('pods');
+  const [activeTab, setActiveTab] = useState<'pods' | 'workloads' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'argocd'>('pods');
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -236,11 +236,11 @@ function App() {
                   Ingresses
                 </button>
                 <button 
-                  className={`ui-tab ${activeTab === 'ai' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('ai')}
-                  style={{ color: activeTab === 'ai' ? 'white' : 'var(--primary)' }}
+                  className={`ui-tab ${activeTab === 'argocd' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('argocd')}
+                  style={{ color: activeTab === 'argocd' ? 'white' : 'var(--primary)' }}
                 >
-                  ✨ AI Insights
+                  ArgoCD
                 </button>
               </div>
 
@@ -285,8 +285,8 @@ function App() {
                   namespace={selectedNamespace}
                 />
               )}
-              {activeTab === 'ai' && (
-                <AIAnalysisPanel
+              {activeTab === 'argocd' && (
+                <ArgoCDPanel
                   context={selectedContext}
                   namespace={selectedNamespace}
                 />

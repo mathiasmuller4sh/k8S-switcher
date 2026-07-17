@@ -95,6 +95,52 @@ fn kubectl_cmd() -> Command {
     cmd
 }
 
+fn argocd_path() -> String {
+    let candidates = [
+        "/usr/local/bin/argocd",
+        "/opt/homebrew/bin/argocd",
+        "/usr/bin/argocd",
+        "/opt/local/bin/argocd",
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let user_candidates = [
+            format!("{}/.asdf/shims/argocd", home),
+            format!("{}/.local/bin/argocd", home),
+            format!("{}/bin/argocd", home),
+        ];
+        for path in &user_candidates {
+            if std::path::Path::new(path).exists() {
+                return path.to_string();
+            }
+        }
+    }
+
+    "argocd".to_string()
+}
+
+fn argocd_cmd() -> Command {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let path = format!(
+        "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:{}/.asdf/shims:{}/.local/bin:{}",
+        home,
+        home,
+        std::env::var("PATH").unwrap_or_default()
+    );
+    
+    let argocd = argocd_path();
+    log_debug(&format!("Using argocd at: {}", argocd));
+    
+    let mut cmd = Command::new(argocd);
+    cmd.env("PATH", path);
+    cmd
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContainerResources {
@@ -1671,6 +1717,102 @@ async fn search_namespaces(
     Ok(results)
 }
 
+#[tauri::command]
+async fn get_argocd_state(namespace: String) -> Result<String, String> {
+    let script = format!(
+        r#"
+        TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.config/argocd/config 2>/dev/null | head -n 1)
+        if [ -z "$TOKEN" ]; then
+            TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.argocd/config 2>/dev/null | head -n 1)
+        fi
+        if [ -z "$TOKEN" ]; then
+            echo "ArgoCD token not found in ~/.config/argocd/config. Please login first." >&2
+            exit 1
+        fi
+        curl -s -k -H "Cookie: argocd.token=$TOKEN" "https://argocd.quatre.systems/api/v1/applications/{}"
+        "#,
+        namespace
+    );
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("Failed to run curl script: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("argocd api get failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+async fn sync_argocd_app(namespace: String) -> Result<String, String> {
+    let script = format!(
+        r#"
+        TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.config/argocd/config 2>/dev/null | head -n 1)
+        if [ -z "$TOKEN" ]; then
+            TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.argocd/config 2>/dev/null | head -n 1)
+        fi
+        if [ -z "$TOKEN" ]; then
+            echo "ArgoCD token not found in ~/.config/argocd/config. Please login first." >&2
+            exit 1
+        fi
+        curl -s -k -X POST -H "Content-Type: application/json" -H "Cookie: argocd.token=$TOKEN" -d '{{"prune": true}}' "https://argocd.quatre.systems/api/v1/applications/{}/sync"
+        "#,
+        namespace
+    );
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("Failed to run curl script: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("argocd api sync failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+async fn get_argocd_revision_metadata(namespace: String, revision: String) -> Result<String, String> {
+    let script = format!(
+        r#"
+        TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.config/argocd/config 2>/dev/null | head -n 1)
+        if [ -z "$TOKEN" ]; then
+            TOKEN=$(grep -o 'ey[a-zA-Z0-9._-]*' ~/.argocd/config 2>/dev/null | head -n 1)
+        fi
+        if [ -z "$TOKEN" ]; then
+            echo "ArgoCD token not found in ~/.config/argocd/config. Please login first." >&2
+            exit 1
+        fi
+        curl -s -k -H "Cookie: argocd.token=$TOKEN" "https://argocd.quatre.systems/api/v1/applications/{}/revisions/{}/metadata"
+        "#,
+        namespace, revision
+    );
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("Failed to run curl script: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("argocd api metadata failed: {}", err));
+        return Err(err);
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let cache = SearchCache::default();
@@ -1710,7 +1852,10 @@ pub fn run() {
             get_jobs,
             execute_brew_upgrade,
             sync_namespaces_cache,
-            search_namespaces
+            search_namespaces,
+            get_argocd_state,
+            sync_argocd_app,
+            get_argocd_revision_metadata
         ])
         .setup(|app| {
             let _handle = app.handle();

@@ -32,8 +32,20 @@ export function SecretList({ context, namespace }: SecretListProps) {
 
   const openVault = async (secretName: string) => {
     try {
-      // Lien direct vers le secret dans l'UI de Vault
-      await openUrl(`https://vault.quatre.systems/ui/vault/secrets/secret/show/${namespace}/${secretName}`);
+      // Example:
+      // namespace = "tekcar-orders-preprod" -> project="tekcar", envPath="orders/preprod"
+      // secretName = "gcs-secrets" -> "gcs"
+      const parts = namespace.split('-');
+      const project = parts[0];
+      const envPath = parts.length > 1 ? parts.slice(1).join('/') : '';
+      
+      // Remove -secret or -secrets suffix if present
+      const cleanSecretName = secretName.replace(/-secrets?$/, '');
+      
+      const fullPath = envPath ? `${envPath}/${cleanSecretName}` : cleanSecretName;
+      const vaultUrl = `https://vault.quatre.systems/ui/vault/secrets/${project}/kv/${encodeURIComponent(fullPath)}`;
+      
+      await openUrl(vaultUrl);
     } catch (e) {
       console.error('Failed to open Vault URL', e);
     }
