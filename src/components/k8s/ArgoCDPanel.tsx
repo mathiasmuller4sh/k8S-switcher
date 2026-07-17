@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { RefreshCw, Play, ShieldAlert, Activity, Check, ExternalLink, AlertCircle } from 'lucide-react';
+import { RefreshCw, Play, Activity, Check, ExternalLink, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
 interface ArgoCDPanelProps {
