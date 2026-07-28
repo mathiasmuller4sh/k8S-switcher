@@ -9,6 +9,7 @@ interface SelectionListProps {
   isFavorite?: (value: string) => boolean;
   onToggleFavorite?: (value: string) => void;
   loading?: boolean;
+  error?: string | null;
 }
 
 export function SelectionList({
@@ -17,7 +18,8 @@ export function SelectionList({
   onSelect,
   isFavorite,
   onToggleFavorite,
-  loading
+  loading,
+  error
 }: SelectionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -31,6 +33,48 @@ export function SelectionList({
 
   if (loading) {
     return <div className="ui-empty-state">Loading {title.toLowerCase()}...</div>;
+  }
+
+  if (error) {
+    const isGcloudAuthError = error.includes('gcloud auth login') || error.includes('Reauthentication failed');
+    return (
+      <div className="ui-empty-state" style={{ color: 'var(--danger, #ef4444)', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+        <p>Failed to load {title.toLowerCase()}</p>
+        <p style={{ fontSize: '0.85rem', maxWidth: '80%', textAlign: 'center', opacity: 0.8 }}>{error.split('\n')[0]}</p>
+        {isGcloudAuthError && (
+          <button 
+            className="ui-action-btn"
+            style={{ 
+              marginTop: '8px', 
+              backgroundColor: 'var(--primary)', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+            onClick={async () => {
+              try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                // Get terminal settings from localStorage or default
+                const settingsStr = localStorage.getItem("k8s-switcher-settings");
+                let terminalApp = undefined;
+                if (settingsStr) {
+                  const settings = JSON.parse(settingsStr);
+                  terminalApp = settings.terminalApp;
+                }
+                await invoke('open_login_terminal', { terminalApp, command: 'gcloud auth login' });
+              } catch (e) {
+                console.error('Failed to open login terminal', e);
+              }
+            }}
+          >
+            Run gcloud auth login
+          </button>
+        )}
+      </div>
+    );
   }
 
   // Filter options based on search query

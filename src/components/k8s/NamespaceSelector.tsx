@@ -14,7 +14,7 @@ interface NamespaceSelectorProps {
 }
 
 export function NamespaceSelector({ context, selected, onSelect, displayMode = 'combo' }: NamespaceSelectorProps) {
-  const { namespaces, loading } = useKubeNamespaces(context);
+  const { namespaces, loading, error } = useKubeNamespaces(context);
   const { toggleFavorite, isFavorite } = useFavorites(`namespaces-${context}`);
 
   const options = namespaces.map((ns) => ({ value: ns, label: ns }));
@@ -29,6 +29,7 @@ export function NamespaceSelector({ context, selected, onSelect, displayMode = '
         isFavorite={isFavorite}
         onToggleFavorite={toggleFavorite}
         loading={loading}
+        error={error}
       />
     );
   }

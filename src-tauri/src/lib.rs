@@ -1479,6 +1479,14 @@ fn open_logs(context: String, namespace: String, pod_name: String, terminal_app:
 }
 
 #[tauri::command]
+fn open_login_terminal(terminal_app: Option<String>, command: Option<String>) -> Result<(), String> {
+    let default_cmd = "gcloud auth login".to_string();
+    let cmd = command.unwrap_or(default_cmd);
+    let script = get_terminal_script(terminal_app, &cmd);
+    execute_terminal_script(&script)
+}
+
+#[tauri::command]
 fn open_logs_by_label(context: String, namespace: String, label_selector: String, terminal_app: Option<String>) -> Result<(), String> {
     let kubectl_cmd = format!(
         "kubectl --context {} -n {} logs -l {} --max-log-requests=50 -f --tail=100 --prefix",
@@ -1828,6 +1836,7 @@ pub fn run() {
             get_pods,
             get_pod_metrics,
             open_terminal,
+            open_login_terminal,
             open_describe,
             open_logs,
             open_shell,
