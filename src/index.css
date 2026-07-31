@@ -81,6 +81,8 @@ body {
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
+  position: relative;
+  z-index: 100;
 }
 
 .unified-pill {
