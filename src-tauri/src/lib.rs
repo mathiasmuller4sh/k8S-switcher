@@ -1293,25 +1293,52 @@ async fn execute_brew_upgrade() -> Result<String, String> {
         .map_err(|e| format!("Failed to execute brew upgrade: {}", e))?;
 
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let mut err = String::from_utf8_lossy(&output.stderr).trim().to_string();
         
-        // Si le Cask n'est pas installé (par exemple l'utilisateur a téléchargé le DMG à la main)
-        // On bascule sur 'brew install --force' pour écraser l'installation manuelle par celle de brew
-        if err.contains("is not installed") {
-            log_debug("Cask is not installed via brew, attempting to install it...");
-            output = std::process::Command::new(brew_path)
-                .args(["install", "--cask", "mathiasmuller4sh/tap/k8s-switcher", "--force"])
+        // Si le tap n'est pas encore ajouté (par ex. première installation via DMG manuel)
+        if err.contains("requires the tap") || err.contains("is unavailable") {
+            log_debug("Tap not found, attempting to explicitly tap...");
+            let tap_output = std::process::Command::new(brew_path)
+                .args(["tap", "mathiasmuller4sh/tap"])
                 .output()
-                .map_err(|e| format!("Failed to execute brew install: {}", e))?;
+                .map_err(|e| format!("Failed to execute brew tap: {}", e))?;
+                
+            if !tap_output.status.success() {
+                let tap_err = String::from_utf8_lossy(&tap_output.stderr).trim().to_string();
+                log_debug(&format!("brew tap error: {}", tap_err));
+                return Err(format!("brew tap failed: {}", tap_err));
+            }
+            
+            // Retry the original upgrade command after tapping
+            output = std::process::Command::new(brew_path)
+                .args(["upgrade", "--cask", "mathiasmuller4sh/tap/k8s-switcher"])
+                .output()
+                .map_err(|e| format!("Failed to execute brew upgrade after tap: {}", e))?;
                 
             if !output.status.success() {
-                let install_err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                log_debug(&format!("brew install error: {}", install_err));
-                return Err(install_err);
+                err = String::from_utf8_lossy(&output.stderr).trim().to_string();
             }
-        } else {
-            log_debug(&format!("brew upgrade error: {}", err));
-            return Err(err);
+        }
+        
+        if !output.status.success() {
+            // Si le Cask n'est pas installé (par exemple l'utilisateur a téléchargé le DMG à la main)
+            // On bascule sur 'brew install --force' pour écraser l'installation manuelle par celle de brew
+            if err.contains("is not installed") {
+                log_debug("Cask is not installed via brew, attempting to install it...");
+                output = std::process::Command::new(brew_path)
+                    .args(["install", "--cask", "mathiasmuller4sh/tap/k8s-switcher", "--force"])
+                    .output()
+                    .map_err(|e| format!("Failed to execute brew install: {}", e))?;
+                    
+                if !output.status.success() {
+                    let install_err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    log_debug(&format!("brew install error: {}", install_err));
+                    return Err(install_err);
+                }
+            } else {
+                log_debug(&format!("brew upgrade error: {}", err));
+                return Err(err);
+            }
         }
     }
 

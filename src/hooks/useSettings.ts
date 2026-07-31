@@ -3,11 +3,13 @@ import { useState } from 'react';
 export interface AppSettings {
   terminalApp: 'Terminal' | 'iTerm';
   showTopActions: boolean;
+  themeColor: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   terminalApp: 'Terminal',
   showTopActions: false,
+  themeColor: '#FF2D55',
 };
 
 export function useSettings() {
@@ -27,6 +29,14 @@ export function useSettings() {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       localStorage.setItem('k8switcher-settings', JSON.stringify(updated));
+      
+      if (updated.themeColor) {
+        document.documentElement.style.setProperty('--theme-accent', updated.themeColor);
+        document.documentElement.style.setProperty('--theme-accent-hover', updated.themeColor);
+        document.documentElement.style.setProperty('--primary', updated.themeColor);
+        document.documentElement.style.setProperty('--primary-hover', updated.themeColor);
+      }
+      
       return updated;
     });
   };

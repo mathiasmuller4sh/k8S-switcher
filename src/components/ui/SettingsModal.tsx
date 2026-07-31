@@ -60,6 +60,38 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', marginBottom: '12px', marginTop: 0 }}>
               <Layout size={16} /> User Interface
             </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <p className="settings-description" style={{ marginBottom: '8px' }}>Theme Accent Color</p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                {[
+                  { name: 'Pink', value: '#FF2D55' },
+                  { name: 'Blue', value: '#0A84FF' },
+                  { name: 'Green', value: '#30D158' },
+                  { name: 'Orange', value: '#FF9F0A' },
+                  { name: 'Vieux Rose', value: '#C08081' },
+                ].map((color) => (
+                  <button
+                    key={color.name}
+                    onClick={() => updateSettings({ themeColor: color.value })}
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      backgroundColor: color.value,
+                      border: settings.themeColor === color.value ? '2px solid white' : '2px solid transparent',
+                      boxShadow: settings.themeColor === color.value ? '0 0 0 1px rgba(255,255,255,0.3)' : 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                    }}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+
             <p className="settings-description">
               Customize the look and feel of K8s Switcher.
             </p>

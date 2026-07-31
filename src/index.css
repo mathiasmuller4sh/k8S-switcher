@@ -1,21 +1,28 @@
 :root {
-  --bg-color: #0f172a;
-  --bg-color-light: #1e293b;
-  --text-color: #f8fafc;
-  --text-muted: #94a3b8;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --secondary: #334155;
-  --secondary-hover: #475569;
-  --border-color: #334155;
+  --theme-accent: #FF2D55; /* Apple Pink */
+  --theme-accent-hover: #FF375F;
+  --bg-color: #121214; /* Darker base for gradient */
+  --bg-color-light: rgba(255, 255, 255, 0.08); /* More transparent for glass effect */
+  --bg-color-lighter: rgba(255, 255, 255, 0.12);
+  --text-color: #f5f5f7;
+  --text-muted: #86868b;
+  --primary: var(--theme-accent);
+  --primary-hover: var(--theme-accent-hover);
+  --secondary: rgba(99, 99, 102, 0.5);
+  --secondary-hover: rgba(99, 99, 102, 0.8);
+  --border-color: rgba(255, 255, 255, 0.15); /* Slightly brighter border */
   --radius: 8px;
-  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); /* Softer, deeper shadow */
+  --glass-blur: blur(24px) saturate(180%); /* Stronger blur and saturation */
 }
 
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: var(--bg-color);
+  background-image: 
+    radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--theme-accent) 15%, transparent), transparent 50%),
+    radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--theme-accent) 8%, transparent), transparent 50%);
   color: var(--text-color);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -48,9 +55,7 @@ body {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
-  background: linear-gradient(to right, #60a5fa, #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-color);
 }
 
 .app-content {
@@ -70,21 +75,100 @@ body {
   padding-right: 4px; /* Space for scrollbar */
 }
 
-.selector-group {
+/* Unified Widget (Top Bar) */
+.unified-widget-container {
   display: flex;
-  flex-direction: row;
-  gap: 8px;
-  width: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
 }
 
-.selector-group > * {
-  flex: 1;
-  min-width: 0;
+.unified-pill {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-color-light);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 4px 8px;
+  box-shadow: var(--shadow);
 }
 
-/* UI Components */
+.unified-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  border-radius: 16px;
+  transition: background-color 0.2s;
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
 
-/* Custom SelectDropdown */
+.unified-section:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.unified-divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-color);
+  margin: 0 4px;
+}
+
+.unified-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  border: none;
+}
+
+.unified-icon-btn:hover {
+  color: var(--text-color);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ui-tabs {
+  display: flex;
+  background: transparent;
+  padding: 4px;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.ui-tab {
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ui-tab:hover:not(.active) {
+  color: var(--text-color);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.ui-tab.active {
+  color: #fff;
+  background-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom SelectDropdown fallback */
 .ui-select-container {
   display: flex;
   flex-direction: column;
@@ -107,6 +191,7 @@ body {
   justify-content: space-between;
   align-items: center;
   background-color: var(--bg-color-light);
+  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-color);
   color: var(--text-color);
   padding: 8px 12px;
@@ -114,11 +199,11 @@ body {
   font-size: 0.875rem;
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
 
 .custom-select:hover {
-  border-color: var(--primary-hover);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .custom-select.open {
@@ -170,7 +255,8 @@ body {
   left: 0;
   right: 0;
   background-color: var(--bg-color-light);
-  border: 1px solid var(--primary);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
   border-top: none;
   border-bottom-left-radius: var(--radius);
   border-bottom-right-radius: var(--radius);
@@ -185,13 +271,13 @@ body {
 .ui-select-search-wrapper {
   padding: 8px;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-color-light);
+  background-color: rgba(0,0,0,0.2);
 }
 
 .ui-select-search-input {
   width: 100%;
   padding: 6px 8px;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-color);
@@ -223,8 +309,8 @@ body {
 }
 
 .ui-select-option.selected {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: var(--primary);
+  background-color: var(--primary);
+  color: #fff;
 }
 
 .ui-select-option-label {
@@ -436,7 +522,8 @@ body {
   gap: 16px;
   align-items: center;
   padding: 8px 12px;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border-color);
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -445,42 +532,6 @@ body {
 }
 
 /* Tabs */
-.ui-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
-  background-color: rgba(0, 0, 0, 0.2);
-  padding: 4px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-color);
-}
-
-.ui-tab {
-  flex: 1;
-  padding: 6px 12px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.ui-tab:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-color);
-}
-
-.ui-tab.active {
-  background-color: var(--primary);
-  color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
 /* PVC List */
 .ui-pvc-list {
   display: flex;
@@ -788,8 +839,13 @@ body {
 }
 
 .ui-pod-item.selected {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: rgba(255, 255, 255, 0.12); /* Brighter glass for selection instead of red */
   border-left: 3px solid var(--primary);
+}
+
+.ui-pod-item.selected .ui-pod-name {
+  color: #fff;
+  font-weight: 600;
 }
 
 .ui-pod-name {
@@ -817,17 +873,39 @@ body {
 }
 
 .ui-pod-status {
-  font-size: 0.75rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.8125rem;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color);
+}
+
+.ui-pod-status::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background-color: var(--secondary);
 }
 
+.ui-pod-status.status-running::before {
+  background-color: #34c759; /* Apple Green */
+}
 .ui-pod-status.status-running {
-  background-color: rgba(16, 185, 129, 0.2);
-  color: #34d399;
+  color: #34c759;
 }
 
+.ui-pod-status.status-error::before,
+.ui-pod-status.status-crashloopbackoff::before,
+.ui-pod-status.status-imagepullbackoff::before,
+.ui-pod-status.status-errimagepull::before,
+.ui-pod-status.status-createcontainererror::before,
+.ui-pod-status.status-runcontainererror::before,
+.ui-pod-status.status-evicted::before {
+  background-color: #ff3b30; /* Apple Red */
+}
 .ui-pod-status.status-error,
 .ui-pod-status.status-crashloopbackoff,
 .ui-pod-status.status-imagepullbackoff,
@@ -835,19 +913,23 @@ body {
 .ui-pod-status.status-createcontainererror,
 .ui-pod-status.status-runcontainererror,
 .ui-pod-status.status-evicted {
-  background-color: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  color: #ff3b30;
 }
 
+.ui-pod-status.status-pending::before,
+.ui-pod-status.status-containercreating::before {
+  background-color: #ff9f0a; /* Apple Orange */
+}
 .ui-pod-status.status-pending,
 .ui-pod-status.status-containercreating {
-  background-color: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  color: #ff9f0a;
 }
 
+.ui-pod-status.status-terminating::before {
+  background-color: #8e8e93; /* Apple Gray */
+}
 .ui-pod-status.status-terminating {
-  background-color: rgba(100, 116, 139, 0.2);
-  color: #94a3b8;
+  color: #8e8e93;
 }
 
 .ui-empty-state {
@@ -860,6 +942,7 @@ body {
 /* Card */
 .ui-card {
   background-color: var(--bg-color-light);
+  backdrop-filter: var(--glass-blur);
   border-radius: var(--radius);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
@@ -922,18 +1005,20 @@ body {
 }
 
 .ui-button-secondary {
-  background-color: var(--secondary);
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-color);
 }
 
 .ui-button-secondary:hover:not(:disabled) {
-  background-color: var(--secondary-hover);
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* ActionPanel */
 /* ActionPanel Footer */
 .ui-action-panel-footer {
-  background-color: var(--bg-color-light);
+  background-color: rgba(30, 30, 32, 0.6);
+  backdrop-filter: var(--glass-blur);
   border-top: 1px solid var(--border-color);
   margin: 0 -16px -16px -16px;
   padding: 0;
@@ -954,7 +1039,8 @@ body {
   gap: 8px;
   cursor: pointer;
   user-select: none;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: var(--glass-blur);
   transition: background-color 0.2s;
 }
 
@@ -1484,7 +1570,8 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1492,12 +1579,13 @@ body {
 }
 
 .modal-content {
-  background-color: var(--bg-color-light);
+  background-color: rgba(20, 20, 22, 0.75);
+  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   width: 90%;
   max-width: 500px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
 }
 
 .modal-header {

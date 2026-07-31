@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
+import { useSettings } from "./hooks/useSettings";
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ClusterSelector } from "./components/k8s/ClusterSelector";
-import { NamespaceSelector } from "./components/k8s/NamespaceSelector";
+import { UnifiedWidget } from "./components/ui/UnifiedWidget";
 import { PodList } from "./components/k8s/PodList";
 import { PvcList } from "./components/k8s/PvcList";
 import { IngressList } from "./components/k8s/IngressList";
@@ -34,6 +34,17 @@ function App() {
   const [activeTab, setActiveTab] = useState<'pods' | 'workloads' | 'pvcs' | 'ingresses' | 'events' | 'cronjobs' | 'secrets' | 'argocd'>('pods');
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const { settings } = useSettings();
+
+  useEffect(() => {
+    // Apply custom theme color to document root
+    if (settings.themeColor) {
+      document.documentElement.style.setProperty('--theme-accent', settings.themeColor);
+      document.documentElement.style.setProperty('--theme-accent-hover', settings.themeColor);
+      document.documentElement.style.setProperty('--primary', settings.themeColor);
+      document.documentElement.style.setProperty('--primary-hover', settings.themeColor);
+    }
+  }, [settings.themeColor]);
 
   useEffect(() => {
     invoke<CurrentContextInfo>('get_current_context')
@@ -48,7 +59,7 @@ function App() {
       .catch(err => console.error("Failed to load current context", err));
   }, []);
 
-    const { updateInfo, isUpdating, updateError, updateSuccess, applyUpdate } = useAutoUpdate();
+  const { updateInfo, isUpdating, updateError, updateSuccess, applyUpdate } = useAutoUpdate();
 
   const handleContextChange = (context: string) => {
     setSelectedContext(context);
@@ -147,49 +158,17 @@ function App() {
           }}
         />
       )}
-
       <main className="app-content">
-        {(isContextSelected || isNamespaceSelected) && (
-          <div className="selector-group">
-            {isContextSelected && (
-              <ClusterSelector
-                selected={selectedContext}
-                onSelect={handleContextChange}
-                displayMode="combo"
-              />
-            )}
-            {isNamespaceSelected && (
-              <NamespaceSelector
-                key={selectedContext}
-                context={selectedContext}
-                selected={selectedNamespace}
-                onSelect={handleNamespaceChange}
-                displayMode="combo"
-              />
-            )}
-          </div>
-        )}
+        <UnifiedWidget 
+          selectedContext={selectedContext}
+          selectedNamespace={selectedNamespace}
+          onContextChange={handleContextChange}
+          onNamespaceChange={handleNamespaceChange}
+          onSearchClick={() => setShowSearch(true)}
+        />
 
         <div className="scrollable-content-area" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <div className="pod-section" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            {!isContextSelected && (
-            <ClusterSelector
-              selected={selectedContext}
-              onSelect={handleContextChange}
-              displayMode="list"
-            />
-          )}
-
-          {isContextSelected && !isNamespaceSelected && (
-            <NamespaceSelector
-              key={`list-${selectedContext}`}
-              context={selectedContext}
-              selected={selectedNamespace}
-              onSelect={handleNamespaceChange}
-              displayMode="list"
-            />
-          )}
-
           {isContextSelected && isNamespaceSelected && (
             <>
               <div className="ui-tabs">
@@ -238,7 +217,7 @@ function App() {
                 <button 
                   className={`ui-tab ${activeTab === 'argocd' ? 'active' : ''}`}
                   onClick={() => setActiveTab('argocd')}
-                  style={{ color: activeTab === 'argocd' ? 'white' : 'var(--primary)' }}
+                  style={{ color: activeTab === 'argocd' ? 'white' : 'var(--text-muted)' }}
                 >
                   ArgoCD
                 </button>
