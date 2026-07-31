@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useKubeEvents } from '../../hooks/useKubeEvents';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Activity, RefreshCw, Zap, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { invoke } from '@tauri-apps/api/core';
@@ -10,7 +11,7 @@ interface EventListProps {
 }
 
 export function EventList({ context, namespace }: EventListProps) {
-  const { events, loading, refresh, autoRefresh, setAutoRefresh } = useKubeEvents(context, namespace);
+  const { events, loading, error, refresh, autoRefresh, setAutoRefresh } = useKubeEvents(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -29,6 +30,16 @@ export function EventList({ context, namespace }: EventListProps) {
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="Events" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading && events.length === 0) {

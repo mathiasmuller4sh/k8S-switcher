@@ -13,20 +13,24 @@ export interface Pvc {
 export function useKubePvcs(context: string, namespace: string) {
   const [pvcs, setPvcs] = useState<Pvc[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchPvcs = async (showLoading = true) => {
     if (!context || !namespace) {
       setPvcs([]);
+      setError(null);
       return;
     }
 
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const result = await invoke<Pvc[]>('get_pvcs', { context, namespace });
       setPvcs(result);
-    } catch (error) {
-      console.error('Failed to fetch PVCs', error);
+    } catch (err: any) {
+      console.error('Failed to fetch PVCs', err);
+      setError(String(err));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -48,5 +52,5 @@ export function useKubePvcs(context: string, namespace: string) {
     };
   }, [autoRefresh, context, namespace]);
 
-  return { pvcs, loading, refresh: () => fetchPvcs(true), autoRefresh, setAutoRefresh };
+  return { pvcs, loading, error, refresh: () => fetchPvcs(true), autoRefresh, setAutoRefresh };
 }

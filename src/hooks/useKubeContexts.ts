@@ -3,23 +3,26 @@ import { invoke } from '@tauri-apps/api/core';
 
 export function useKubeContexts() {
   const [contexts, setContexts] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchContexts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await invoke<string[]>('get_contexts');
+      setContexts(result);
+    } catch (err: any) {
+      console.error('Failed to fetch contexts', err);
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchContexts = async () => {
-      setLoading(true);
-      try {
-        const result = await invoke<string[]>('get_contexts');
-        setContexts(result);
-      } catch (error) {
-        console.error('Failed to fetch contexts', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchContexts();
   }, []);
 
-  return { contexts, loading };
+  return { contexts, loading, error, refresh: fetchContexts };
 }

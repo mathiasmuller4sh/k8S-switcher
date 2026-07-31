@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useKubeSecrets } from '../../hooks/useKubeSecrets';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Key, RefreshCw, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -11,7 +12,7 @@ interface SecretListProps {
 }
 
 export function SecretList({ context, namespace }: SecretListProps) {
-  const { secrets, loading, refresh } = useKubeSecrets(context, namespace);
+  const { secrets, loading, error, refresh } = useKubeSecrets(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedSecret, setExpandedSecret] = useState<string | null>(null);
   const [secretData, setSecretData] = useState<Record<string, string> | null>(null);
@@ -20,6 +21,16 @@ export function SecretList({ context, namespace }: SecretListProps) {
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="Secrets" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading && secrets.length === 0) {

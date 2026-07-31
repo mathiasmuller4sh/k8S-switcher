@@ -12,20 +12,24 @@ export interface KubeEvent {
 export function useKubeEvents(context: string, namespace: string) {
   const [events, setEvents] = useState<KubeEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchEvents = async (showLoading = true) => {
     if (!context || !namespace) {
       setEvents([]);
+      setError(null);
       return;
     }
 
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const result = await invoke<KubeEvent[]>('get_events', { context, namespace });
       setEvents(result);
-    } catch (error) {
-      console.error('Failed to fetch Events', error);
+    } catch (err: any) {
+      console.error('Failed to fetch Events', err);
+      setError(String(err));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -47,5 +51,5 @@ export function useKubeEvents(context: string, namespace: string) {
     };
   }, [autoRefresh, context, namespace]);
 
-  return { events, loading, refresh: () => fetchEvents(true), autoRefresh, setAutoRefresh };
+  return { events, loading, error, refresh: () => fetchEvents(true), autoRefresh, setAutoRefresh };
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeWorkloads } from '../../hooks/useKubeWorkloads';
 import { useKubePods } from '../../hooks/useKubePods';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, ChevronRight, Layers, RefreshCw, Zap, Minus, Plus, RotateCcw, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useActionHistory } from '../../hooks/useActionHistory';
@@ -12,7 +13,7 @@ interface WorkloadListProps {
 }
 
 export function WorkloadList({ context, namespace }: WorkloadListProps) {
-  const { workloads, loading, refresh, autoRefresh, setAutoRefresh } = useKubeWorkloads(context, namespace);
+  const { workloads, loading, error, refresh, autoRefresh, setAutoRefresh } = useKubeWorkloads(context, namespace);
   const { pods } = useKubePods(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { addAction } = useActionHistory();
@@ -83,8 +84,18 @@ export function WorkloadList({ context, namespace }: WorkloadListProps) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
   }
 
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="workloads" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (loading && workloads.length === 0) {
-    return <div className="ui-empty-state">Loading Workloads...</div>;
+    return <div className="ui-empty-state">Loading workloads...</div>;
   }
 
   if (workloads.length === 0) {

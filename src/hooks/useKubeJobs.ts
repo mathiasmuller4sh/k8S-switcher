@@ -13,20 +13,24 @@ export interface JobInfo {
 export function useKubeJobs(context: string, namespace: string) {
   const [jobs, setJobs] = useState<JobInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchJobs = async (showLoading = true) => {
     if (!context || !namespace) {
       setJobs([]);
+      setError(null);
       return;
     }
 
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const result = await invoke<JobInfo[]>('get_jobs', { context, namespace });
       setJobs(result);
-    } catch (error) {
-      console.error('Failed to fetch jobs', error);
+    } catch (err: any) {
+      console.error('Failed to fetch jobs', err);
+      setError(String(err));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -58,5 +62,5 @@ export function useKubeJobs(context: string, namespace: string) {
     };
   }, [autoRefresh, context, namespace]);
 
-  return { jobs, loading, refresh: () => fetchJobs(true), autoRefresh, setAutoRefresh };
+  return { jobs, loading, error, refresh: () => fetchJobs(true), autoRefresh, setAutoRefresh };
 }

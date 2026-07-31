@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useKubePvcs } from '../../hooks/useKubePvcs';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Database, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -9,11 +10,21 @@ interface PvcListProps {
 }
 
 export function PvcList({ context, namespace }: PvcListProps) {
-  const { pvcs, loading, refresh } = useKubePvcs(context, namespace);
+  const { pvcs, loading, error, refresh } = useKubePvcs(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="PVCs" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading && pvcs.length === 0) {

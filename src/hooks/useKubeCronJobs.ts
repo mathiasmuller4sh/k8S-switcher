@@ -13,20 +13,24 @@ export interface CronJobInfo {
 export function useKubeCronJobs(context: string, namespace: string) {
   const [cronjobs, setCronJobs] = useState<CronJobInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchCronJobs = async (showLoading = true) => {
     if (!context || !namespace) {
       setCronJobs([]);
+      setError(null);
       return;
     }
 
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const result = await invoke<CronJobInfo[]>('get_cronjobs', { context, namespace });
       setCronJobs(result);
     } catch (error) {
       console.error('Failed to fetch cronjobs', error);
+      setError(String(error));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -58,5 +62,5 @@ export function useKubeCronJobs(context: string, namespace: string) {
     };
   }, [autoRefresh, context, namespace]);
 
-  return { cronjobs, loading, refresh: () => fetchCronJobs(true), autoRefresh, setAutoRefresh };
+  return { cronjobs, loading, error, refresh: () => fetchCronJobs(true), autoRefresh, setAutoRefresh };
 }

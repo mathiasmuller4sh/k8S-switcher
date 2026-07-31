@@ -22,20 +22,24 @@ export interface Pod {
 export function useKubePods(context: string, namespace: string) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchPods = async (showLoading = true) => {
     if (!context || !namespace) {
       setPods([]);
+      setError(null);
       return;
     }
 
     if (showLoading) setLoading(true);
+    setError(null);
     try {
       const result = await invoke<Pod[]>('get_pods', { context, namespace });
       setPods(result);
-    } catch (error) {
-      console.error('Failed to fetch pods', error);
+    } catch (err: any) {
+      console.error('Failed to fetch pods', err);
+      setError(String(err));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -45,27 +49,16 @@ export function useKubePods(context: string, namespace: string) {
     fetchPods();
   }, [context, namespace]);
 
+  // Auto-refresh interval
   useEffect(() => {
-    let isActive = true;
-    let timeout: any;
+    if (!autoRefresh) return;
+    
+    const interval = setInterval(() => {
+      fetchPods(false); // Don't show loading state on auto-refresh
+    }, 5000); // 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [context, namespace, autoRefresh]);
 
-    const poll = async () => {
-      if (!isActive) return;
-      await fetchPods(false);
-      if (isActive) {
-        timeout = setTimeout(poll, 5000);
-      }
-    };
-
-    if (autoRefresh && context && namespace) {
-      timeout = setTimeout(poll, 5000);
-    }
-
-    return () => {
-      isActive = false;
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [autoRefresh, context, namespace]);
-
-  return { pods, loading, refresh: () => fetchPods(true), autoRefresh, setAutoRefresh };
+  return { pods, loading, error, refresh: () => fetchPods(true), autoRefresh, setAutoRefresh };
 }

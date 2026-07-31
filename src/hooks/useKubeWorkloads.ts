@@ -30,27 +30,26 @@ export function useKubeWorkloads(context: string, namespace: string) {
       setWorkloads(data);
     } catch (err) {
       console.error('Failed to fetch workloads:', err);
-      setError(err as string);
+      setError(String(err));
     } finally {
       if (showLoadingState) setLoading(false);
     }
   }, [context, namespace]);
 
   useEffect(() => {
-    fetchWorkloads(true);
-  }, [fetchWorkloads]);
+    fetchWorkloads();
+  }, [context, namespace]);
 
+  // Auto-refresh interval
   useEffect(() => {
-    let intervalId: number;
-    if (autoRefresh) {
-      intervalId = window.setInterval(() => {
-        fetchWorkloads(false);
-      }, 5000);
-    }
-    return () => {
-      if (intervalId) window.clearInterval(intervalId);
-    };
-  }, [autoRefresh, fetchWorkloads]);
+    if (!autoRefresh) return;
+    
+    const interval = setInterval(() => {
+      fetchWorkloads(false); // Don't show loading state on auto-refresh
+    }, 5000); // 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [context, namespace, autoRefresh]);
 
   return { workloads, loading, error, refresh: () => fetchWorkloads(true), autoRefresh, setAutoRefresh };
 }

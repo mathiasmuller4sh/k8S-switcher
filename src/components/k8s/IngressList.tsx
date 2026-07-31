@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useKubeIngresses } from '../../hooks/useKubeIngresses';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Globe, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -9,11 +10,21 @@ interface IngressListProps {
 }
 
 export function IngressList({ context, namespace }: IngressListProps) {
-  const { ingresses, loading, refresh } = useKubeIngresses(context, namespace);
+  const { ingresses, loading, error, refresh } = useKubeIngresses(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="Ingresses" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading && ingresses.length === 0) {

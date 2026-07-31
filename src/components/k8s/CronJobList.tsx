@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeCronJobs, CronJobInfo } from '../../hooks/useKubeCronJobs';
 import { useKubeJobs } from '../../hooks/useKubeJobs';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle, Trash2, FileText } from 'lucide-react';
 import { useActionHistory } from '../../hooks/useActionHistory';
 import { Card, CardContent, CardHeader } from '../ui/Card';
@@ -12,7 +13,7 @@ interface CronJobListProps {
 }
 
 export function CronJobList({ context, namespace }: CronJobListProps) {
-  const { cronjobs, loading, refresh } = useKubeCronJobs(context, namespace);
+  const { cronjobs, loading, error, refresh } = useKubeCronJobs(context, namespace);
   const { jobs, refresh: refreshJobs } = useKubeJobs(context, namespace);
   const { addAction } = useActionHistory();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -20,6 +21,16 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="CronJobs" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading && cronjobs.length === 0) {

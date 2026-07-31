@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pod, useKubePods } from '../../hooks/useKubePods';
+import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Box, RefreshCw, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 
@@ -19,7 +20,7 @@ function shortImage(image: string): string {
 }
 
 export function PodList({ context, namespace, selectedPod, onSelectPod }: PodListProps) {
-  const { pods, loading, refresh, autoRefresh, setAutoRefresh } = useKubePods(context, namespace);
+  const { pods, loading, error, refresh, autoRefresh, setAutoRefresh } = useKubePods(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
@@ -39,6 +40,16 @@ export function PodList({ context, namespace, selectedPod, onSelectPod }: PodLis
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
+  }
+
+  if (error) {
+    return (
+      <Card className={`ui-pod-list-card`}>
+        <CardContent style={{ padding: '24px' }}>
+          <K8sAuthError error={error} onRetry={refresh} resourceName="pods" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (loading) {
