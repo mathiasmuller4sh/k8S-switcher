@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { RefreshCw, Play, Activity, Check, ExternalLink, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { useSettings } from '../../hooks/useSettings';
 
 interface ArgoCDPanelProps {
   context: string;
@@ -15,6 +16,7 @@ export function ArgoCDPanel({ namespace }: ArgoCDPanelProps) {
   const [argoMetadata, setArgoMetadata] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncSuccess, setSyncSuccess] = useState<boolean>(false);
+  const { settings } = useSettings();
 
   const fetchArgoState = async () => {
     setIsFetching(true);
@@ -139,6 +141,18 @@ export function ArgoCDPanel({ namespace }: ArgoCDPanelProps) {
                 <li>Login to the server using SSO: <code style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 4px', borderRadius: '3px', userSelect: 'all' }}>argocd login argocd.quatre.systems --sso</code></li>
                 <li>Once logged in, click the refresh button above.</li>
               </ol>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                <button 
+                  className="ui-button ui-button-primary" 
+                  onClick={() => invoke('open_login_terminal', { 
+                    terminalApp: settings.terminalApp, 
+                    command: 'argocd login argocd.quatre.systems --sso' 
+                  })}
+                  style={{ padding: '6px 16px', fontSize: '0.85rem' }}
+                >
+                  Login with SSO
+                </button>
+              </div>
             </div>
           </div>
         )}
