@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Server, Folder, Search, ChevronDown, Check, Terminal } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeContexts } from '../../hooks/useKubeContexts';
@@ -25,6 +25,8 @@ export function UnifiedWidget({
   const { settings } = useSettings();
 
   const [activeDropdown, setActiveDropdown] = useState<'context' | 'namespace' | null>(null);
+  const [contextSearch, setContextSearch] = useState('');
+  const [namespaceSearch, setNamespaceSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -39,6 +41,15 @@ export function UnifiedWidget({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Reset search when opening dropdown
+  useEffect(() => {
+    if (activeDropdown === 'context') {
+      setContextSearch('');
+    } else if (activeDropdown === 'namespace') {
+      setNamespaceSearch('');
+    }
+  }, [activeDropdown]);
 
   const handleContextSelect = (ctx: string) => {
     onContextChange(ctx);
@@ -63,6 +74,16 @@ export function UnifiedWidget({
     }
   };
 
+  const filteredContexts = useMemo(() => {
+    if (!contextSearch) return contexts;
+    return contexts.filter(ctx => ctx.toLowerCase().includes(contextSearch.toLowerCase()));
+  }, [contexts, contextSearch]);
+
+  const filteredNamespaces = useMemo(() => {
+    if (!namespaceSearch) return namespaces;
+    return namespaces.filter(ns => ns.toLowerCase().includes(namespaceSearch.toLowerCase()));
+  }, [namespaces, namespaceSearch]);
+
   return (
     <div className="unified-widget-container" ref={containerRef}>
       <div className="unified-pill" style={{ position: 'relative' }}>
@@ -71,27 +92,56 @@ export function UnifiedWidget({
         <div style={{ position: 'relative' }}>
           <div 
             className="unified-section" 
-            onClick={() => setActiveDropdown(activeDropdown === 'context' ? null : 'context')}
+            onClick={() => {
+              if (activeDropdown !== 'context') setActiveDropdown('context');
+            }}
           >
-            <Server size={16} />
-            <span>{selectedContext || "Select Cluster..."}</span>
-            <ChevronDown size={14} style={{ opacity: 0.5 }} />
+            <Server size={16} style={{ flexShrink: 0 }} />
+            {activeDropdown === 'context' ? (
+              <input
+                type="text"
+                autoFocus
+                value={contextSearch}
+                onChange={(e) => setContextSearch(e.target.value)}
+                placeholder="Filter contexts..."
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'inherit',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  width: '200px'
+                }}
+              />
+            ) : (
+              <span style={{ 
+                maxWidth: '250px', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                whiteSpace: 'nowrap',
+                display: 'inline-block'
+              }}>
+                {selectedContext || "Select Cluster..."}
+              </span>
+            )}
+            <ChevronDown size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
           </div>
           {activeDropdown === 'context' && (
-            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', width: '250px', marginTop: '8px', borderRadius: '12px' }}>
-              <div className="ui-select-options-list">
+            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', width: '350px', marginTop: '8px', borderRadius: '12px' }}>
+              <div className="ui-select-options-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {contextsLoading ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>Loading...</div>
-                ) : contexts.length === 0 ? (
+                ) : filteredContexts.length === 0 ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>No clusters found</div>
                 ) : (
-                  contexts.map(ctx => (
+                  filteredContexts.map(ctx => (
                     <div 
                       key={ctx} 
                       className={`ui-select-option ${ctx === selectedContext ? 'selected' : ''}`}
                       onClick={() => handleContextSelect(ctx)}
                     >
-                      <span className="ui-select-option-label">{ctx}</span>
+                      <span className="ui-select-option-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ctx}>{ctx}</span>
                       {ctx === selectedContext && <Check size={16} />}
                     </div>
                   ))
@@ -108,31 +158,58 @@ export function UnifiedWidget({
           <div 
             className="unified-section" 
             onClick={() => {
-              if (selectedContext) {
-                setActiveDropdown(activeDropdown === 'namespace' ? null : 'namespace');
+              if (selectedContext && activeDropdown !== 'namespace') {
+                setActiveDropdown('namespace');
               }
             }}
             style={{ opacity: selectedContext ? 1 : 0.5, cursor: selectedContext ? 'pointer' : 'not-allowed' }}
           >
-            <Folder size={16} />
-            <span>{selectedNamespace || "Select Namespace..."}</span>
-            <ChevronDown size={14} style={{ opacity: 0.5 }} />
+            <Folder size={16} style={{ flexShrink: 0 }} />
+            {activeDropdown === 'namespace' ? (
+              <input
+                type="text"
+                autoFocus
+                value={namespaceSearch}
+                onChange={(e) => setNamespaceSearch(e.target.value)}
+                placeholder="Filter namespaces..."
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'inherit',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  width: '200px'
+                }}
+              />
+            ) : (
+              <span style={{ 
+                maxWidth: '250px', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                whiteSpace: 'nowrap',
+                display: 'inline-block'
+              }}>
+                {selectedNamespace || "Select Namespace..."}
+              </span>
+            )}
+            <ChevronDown size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
           </div>
           {activeDropdown === 'namespace' && (
-            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '50%', width: '250px', marginTop: '8px', borderRadius: '12px', transform: 'translateX(-50%)' }}>
-              <div className="ui-select-options-list">
+            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', width: '350px', marginTop: '8px', borderRadius: '12px' }}>
+              <div className="ui-select-options-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {nsLoading ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>Loading...</div>
-                ) : namespaces.length === 0 ? (
+                ) : filteredNamespaces.length === 0 ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>No namespaces found</div>
                 ) : (
-                  namespaces.map(ns => (
+                  filteredNamespaces.map(ns => (
                     <div 
                       key={ns} 
                       className={`ui-select-option ${ns === selectedNamespace ? 'selected' : ''}`}
                       onClick={() => handleNamespaceSelect(ns)}
                     >
-                      <span className="ui-select-option-label">{ns}</span>
+                      <span className="ui-select-option-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ns}>{ns}</span>
                       {ns === selectedNamespace && <Check size={16} />}
                     </div>
                   ))
@@ -144,9 +221,6 @@ export function UnifiedWidget({
       </div>
 
       <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
-        <button className="unified-icon-btn" onClick={onSearchClick} title="Search Namespaces">
-          <Search size={18} />
-        </button>
         {selectedContext && selectedNamespace && (
           <button className="unified-icon-btn" onClick={handleOpenTerminal} title="Open Terminal in this Namespace">
             <Terminal size={18} />

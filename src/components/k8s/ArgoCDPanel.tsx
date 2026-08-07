@@ -29,6 +29,13 @@ export function ArgoCDPanel({ namespace }: ArgoCDPanelProps) {
       const result: string = await invoke('get_argocd_state', { namespace });
       try {
         const parsed = JSON.parse(result);
+        
+        // Detect ArgoCD API errors
+        if (parsed.error || (parsed.code && parsed.message)) {
+          setError(parsed.message || parsed.error || "ArgoCD API Error");
+          return;
+        }
+        
         setArgoState(parsed);
         
         // Fetch metadata if revision is present
@@ -65,7 +72,21 @@ export function ArgoCDPanel({ namespace }: ArgoCDPanelProps) {
     setSyncSuccess(false);
 
     try {
-      await invoke('sync_argocd_app', { namespace });
+      const result: string = await invoke('sync_argocd_app', { namespace });
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed.error || (parsed.code && parsed.message)) {
+          throw new Error(parsed.message || parsed.error || "ArgoCD Sync Error");
+        }
+      } catch (e) {
+        // If it's a valid JSON with error, we threw it above.
+        // If JSON.parse fails, it's a raw string, we can ignore or let it pass if it's success.
+        // We re-throw if it's the Error we just created
+        if (e instanceof Error && e.message !== "Unexpected token") {
+          throw e;
+        }
+      }
+
       setSyncSuccess(true);
       setTimeout(() => {
         fetchArgoState();
@@ -144,10 +165,15 @@ export function ArgoCDPanel({ namespace }: ArgoCDPanelProps) {
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
                 <button 
                   className="ui-button ui-button-primary" 
-                  onClick={() => invoke('open_login_terminal', { 
-                    terminalApp: settings.terminalApp, 
-                    command: 'argocd login argocd.quatre.systems --sso' 
-                  })}
+                  onClick={() => {
+                    invoke('open_login_terminal', { 
+                      terminalApp: settings.terminalApp, 
+                      command: 'argocd login argocd.quatre.systems --sso' 
+                    }).catch(e => {
+                      console.error("Failed to open login terminal:", e);
+                      alert("Failed to open terminal: " + e);
+                    });
+                  }}
                   style={{ padding: '6px 16px', fontSize: '0.85rem' }}
                 >
                   Login with SSO
