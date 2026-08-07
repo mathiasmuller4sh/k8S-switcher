@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Server, Folder, Search, ChevronDown, Check, Terminal } from 'lucide-react';
+import { Server, Folder, ChevronDown, Check, Terminal } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeContexts } from '../../hooks/useKubeContexts';
 import { useKubeNamespaces } from '../../hooks/useKubeNamespaces';
@@ -10,7 +10,6 @@ interface UnifiedWidgetProps {
   selectedNamespace: string;
   onContextChange: (ctx: string) => void;
   onNamespaceChange: (ns: string) => void;
-  onSearchClick: () => void;
 }
 
 export function UnifiedWidget({
@@ -18,7 +17,6 @@ export function UnifiedWidget({
   selectedNamespace,
   onContextChange,
   onNamespaceChange,
-  onSearchClick,
 }: UnifiedWidgetProps) {
   const { contexts, loading: contextsLoading } = useKubeContexts();
   const { namespaces, loading: nsLoading } = useKubeNamespaces(selectedContext);

@@ -164,7 +164,6 @@ function App() {
           selectedNamespace={selectedNamespace}
           onContextChange={handleContextChange}
           onNamespaceChange={handleNamespaceChange}
-          onSearchClick={() => setShowSearch(true)}
         />
 
         <div className="scrollable-content-area" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
