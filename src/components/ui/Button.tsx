@@ -7,6 +7,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   icon?: React.ReactNode;
   isLoading?: boolean;
+  iconOnly?: boolean;
 }
 
 export function Button({
@@ -14,6 +15,7 @@ export function Button({
   variant = 'primary',
   icon,
   isLoading,
+  iconOnly,
   className = '',
   disabled,
   ...props
@@ -21,10 +23,11 @@ export function Button({
   const baseClass = 'ui-button';
   const variantClass = `ui-button-${variant}`;
   const loadingClass = isLoading ? 'ui-button-loading' : '';
+  const iconOnlyClass = iconOnly ? 'ui-button-icon-only' : '';
 
   return (
     <button
-      className={`${baseClass} ${variantClass} ${loadingClass} ${className}`.trim()}
+      className={`${baseClass} ${variantClass} ${loadingClass} ${iconOnlyClass} ${className}`.trim().replace(/\s+/g, ' ')}
       disabled={disabled || isLoading}
       {...props}
     >

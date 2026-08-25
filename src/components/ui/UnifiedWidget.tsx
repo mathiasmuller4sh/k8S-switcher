@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Server, Folder, ChevronDown, Check, Terminal } from 'lucide-react';
+import { Server, Folder, ChevronDown, Check, Terminal, Star, Eye } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useKubeContexts } from '../../hooks/useKubeContexts';
 import { useKubeNamespaces } from '../../hooks/useKubeNamespaces';
 import { useSettings } from '../../hooks/useSettings';
+import { useFavorites } from '../../hooks/useFavorites';
+import { useTerminal } from '../../hooks/useTerminal';
+import { NodeListModal } from './NodeListModal';
 
 interface UnifiedWidgetProps {
   selectedContext: string;
@@ -21,8 +24,12 @@ export function UnifiedWidget({
   const { contexts, loading: contextsLoading } = useKubeContexts();
   const { namespaces, loading: nsLoading } = useKubeNamespaces(selectedContext);
   const { settings } = useSettings();
+  const { favorites: contextFavs, toggleFavorite: toggleContextFav } = useFavorites('contexts');
+  const { favorites: nsFavs, toggleFavorite: toggleNsFav } = useFavorites('namespaces');
+  const { openTerminal } = useTerminal();
 
   const [activeDropdown, setActiveDropdown] = useState<'context' | 'namespace' | null>(null);
+  const [showNodes, setShowNodes] = useState(false);
   const [contextSearch, setContextSearch] = useState('');
   const [namespaceSearch, setNamespaceSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,30 +69,69 @@ export function UnifiedWidget({
   const handleOpenTerminal = async () => {
     if (!selectedContext || !selectedNamespace) return;
     try {
-      await invoke('open_terminal', { 
-        context: selectedContext, 
-        namespace: selectedNamespace,
-        terminalApp: settings.terminalApp
-      });
+      if (settings.terminalApp === 'Interne') {
+        openTerminal(`Terminal: ${selectedNamespace}`, "sh", [
+          "-c",
+          `kubectl config use-context ${selectedContext} && kubectl config set-context --current --namespace=${selectedNamespace} && clear && exec \${SHELL:-/bin/sh}`
+        ]);
+      } else {
+        await invoke('open_terminal', { 
+          context: selectedContext, 
+          namespace: selectedNamespace,
+          terminalApp: settings.terminalApp
+        });
+      }
     } catch (error) {
       console.error('Failed to open terminal', error);
     }
   };
 
   const filteredContexts = useMemo(() => {
-    if (!contextSearch) return contexts;
-    return contexts.filter(ctx => ctx.toLowerCase().includes(contextSearch.toLowerCase()));
-  }, [contexts, contextSearch]);
+    let result = contexts;
+    if (contextSearch) {
+      result = contexts.filter(ctx => ctx.toLowerCase().includes(contextSearch.toLowerCase()));
+    }
+    return [...result].sort((a, b) => {
+      const aFav = contextFavs.includes(a) ? 1 : 0;
+      const bFav = contextFavs.includes(b) ? 1 : 0;
+      if (aFav !== bFav) return bFav - aFav;
+      return a.localeCompare(b);
+    });
+  }, [contexts, contextSearch, contextFavs]);
 
   const filteredNamespaces = useMemo(() => {
-    if (!namespaceSearch) return namespaces;
-    return namespaces.filter(ns => ns.toLowerCase().includes(namespaceSearch.toLowerCase()));
-  }, [namespaces, namespaceSearch]);
+    let result = namespaces;
+    if (namespaceSearch) {
+      result = namespaces.filter(ns => ns.toLowerCase().includes(namespaceSearch.toLowerCase()));
+    }
+    return [...result].sort((a, b) => {
+      const aFav = nsFavs.includes(a) ? 1 : 0;
+      const bFav = nsFavs.includes(b) ? 1 : 0;
+      if (aFav !== bFav) return bFav - aFav;
+      return a.localeCompare(b);
+    });
+  }, [namespaces, namespaceSearch, nsFavs]);
 
   return (
+    <>
     <div className="unified-widget-container" ref={containerRef}>
       <div className="unified-pill" style={{ position: 'relative' }}>
         
+        {/* Nodes Button */}
+        {selectedContext && (
+          <>
+            <div 
+              className="unified-section" 
+              onClick={() => setShowNodes(true)}
+              title="View Nodes"
+              style={{ padding: '0 12px', cursor: 'pointer' }}
+            >
+              <Eye size={16} style={{ flexShrink: 0 }} />
+            </div>
+            <div className="unified-divider"></div>
+          </>
+        )}
+
         {/* Context Selector */}
         <div style={{ position: 'relative' }}>
           <div 
@@ -109,12 +155,12 @@ export function UnifiedWidget({
                   outline: 'none',
                   fontFamily: 'inherit',
                   fontSize: 'inherit',
-                  width: '200px'
+                  width: '240px'
                 }}
               />
             ) : (
               <span style={{ 
-                maxWidth: '250px', 
+                maxWidth: '350px', 
                 overflow: 'hidden', 
                 textOverflow: 'ellipsis', 
                 whiteSpace: 'nowrap',
@@ -126,7 +172,7 @@ export function UnifiedWidget({
             <ChevronDown size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
           </div>
           {activeDropdown === 'context' && (
-            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', width: '350px', marginTop: '8px', borderRadius: '12px' }}>
+            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', minWidth: '550px', width: 'max-content', maxWidth: '85vw', marginTop: '8px', borderRadius: '12px' }}>
               <div className="ui-select-options-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {contextsLoading ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>Loading...</div>
@@ -139,6 +185,17 @@ export function UnifiedWidget({
                       className={`ui-select-option ${ctx === selectedContext ? 'selected' : ''}`}
                       onClick={() => handleContextSelect(ctx)}
                     >
+                      <div 
+                        className={`ui-select-favorite-btn ${contextFavs.includes(ctx) ? 'active' : ''}`}
+                        style={{ marginRight: '8px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleContextFav(ctx);
+                        }}
+                        title={contextFavs.includes(ctx) ? "Remove from favorites" : "Add to favorites"}
+                      >
+                        <Star size={16} fill={contextFavs.includes(ctx) ? "currentColor" : "none"} />
+                      </div>
                       <span className="ui-select-option-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ctx}>{ctx}</span>
                       {ctx === selectedContext && <Check size={16} />}
                     </div>
@@ -177,12 +234,12 @@ export function UnifiedWidget({
                   outline: 'none',
                   fontFamily: 'inherit',
                   fontSize: 'inherit',
-                  width: '200px'
+                  width: '240px'
                 }}
               />
             ) : (
               <span style={{ 
-                maxWidth: '250px', 
+                maxWidth: '350px', 
                 overflow: 'hidden', 
                 textOverflow: 'ellipsis', 
                 whiteSpace: 'nowrap',
@@ -194,7 +251,7 @@ export function UnifiedWidget({
             <ChevronDown size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
           </div>
           {activeDropdown === 'namespace' && (
-            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', width: '350px', marginTop: '8px', borderRadius: '12px' }}>
+            <div className="ui-select-dropdown-menu" style={{ top: '100%', left: '0', minWidth: '550px', width: 'max-content', maxWidth: '85vw', marginTop: '8px', borderRadius: '12px' }}>
               <div className="ui-select-options-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {nsLoading ? (
                   <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>Loading...</div>
@@ -207,6 +264,17 @@ export function UnifiedWidget({
                       className={`ui-select-option ${ns === selectedNamespace ? 'selected' : ''}`}
                       onClick={() => handleNamespaceSelect(ns)}
                     >
+                      <div 
+                        className={`ui-select-favorite-btn ${nsFavs.includes(ns) ? 'active' : ''}`}
+                        style={{ marginRight: '8px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleNsFav(ns);
+                        }}
+                        title={nsFavs.includes(ns) ? "Remove from favorites" : "Add to favorites"}
+                      >
+                        <Star size={16} fill={nsFavs.includes(ns) ? "currentColor" : "none"} />
+                      </div>
                       <span className="ui-select-option-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ns}>{ns}</span>
                       {ns === selectedNamespace && <Check size={16} />}
                     </div>
@@ -220,11 +288,21 @@ export function UnifiedWidget({
 
       <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
         {selectedContext && selectedNamespace && (
-          <button className="unified-icon-btn" onClick={handleOpenTerminal} title="Open Terminal in this Namespace">
-            <Terminal size={18} />
+          <button 
+            className="unified-terminal-btn"
+            onClick={handleOpenTerminal}
+            disabled={!selectedContext || !selectedNamespace}
+            title={`Open Terminal for ${selectedNamespace}`}
+          >
+            <Terminal size={16} />
           </button>
         )}
       </div>
     </div>
+
+    {showNodes && selectedContext && (
+        <NodeListModal context={selectedContext} onClose={() => setShowNodes(false)} />
+      )}
+    </>
   );
 }

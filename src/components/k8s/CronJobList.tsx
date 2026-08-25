@@ -6,6 +6,8 @@ import { K8sAuthError } from '../ui/K8sAuthError';
 import { Play, TerminalSquare, ChevronDown, ChevronRight, ChevronUp, Clock, RefreshCw, StopCircle, Trash2, FileText } from 'lucide-react';
 import { useActionHistory } from '../../hooks/useActionHistory';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { useListFilter } from '../../hooks/useListFilter';
+import { ListFilterField } from '../ui/ListFilterField';
 
 interface CronJobListProps {
   context: string;
@@ -18,6 +20,7 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
   const { addAction } = useActionHistory();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -202,6 +205,14 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
 
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ListFilterField 
+            visible={isFilterVisible} 
+            value={filterText} 
+            onChange={setFilterText} 
+            onClose={closeFilter} 
+            inputRef={inputRef} 
+            placeholder="Filter CronJobs..." 
+          />
           <div className="ui-cronjob-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-cronjob-list-header">
               <span>Name</span>
@@ -213,7 +224,7 @@ export function CronJobList({ context, namespace }: CronJobListProps) {
               <span style={{ textAlign: 'right' }}>Actions</span>
             </div>
             <div className="ui-cronjob-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {cronjobs.map(cj => {
+              {cronjobs.filter(cj => !filterText || cj.name.toLowerCase().includes(filterText.toLowerCase())).map(cj => {
                 const isExpanded = !!expandedRows[cj.name];
                 const cjJobs = jobs.filter(j => 
                   j.cronjobName === cj.name || 

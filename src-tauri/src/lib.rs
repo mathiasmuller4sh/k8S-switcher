@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
-use k8s_openapi::api::core::v1::{Event, PersistentVolumeClaim, Pod};
+use k8s_openapi::api::core::v1::{Event, PersistentVolumeClaim, Pod, Node};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::config::Kubeconfig;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::process::Command;
@@ -11,6 +11,8 @@ use tauri::Manager;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+mod pty;
 
 #[derive(Default, Clone)]
 struct SearchCache {
@@ -95,6 +97,7 @@ fn kubectl_cmd() -> Command {
     cmd
 }
 
+#[allow(dead_code)]
 fn argocd_path() -> String {
     let candidates = [
         "/usr/local/bin/argocd",
@@ -124,6 +127,7 @@ fn argocd_path() -> String {
     "argocd".to_string()
 }
 
+#[allow(dead_code)]
 fn argocd_cmd() -> Command {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let path = format!(
@@ -206,6 +210,28 @@ pub struct SecretInfo {
 pub struct CurrentContextInfo {
     context: String,
     namespace: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NodePodInfo {
+    namespace: String,
+    name: String,
+    cpu: String,
+    memory: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeInfo {
+    name: String,
+    status: String,
+    version: String,
+    age: String,
+    cpu: String,
+    memory: String,
+    pods_count: usize,
+    pods: Vec<NodePodInfo>,
 }
 
 #[tauri::command]
@@ -499,6 +525,171 @@ async fn get_pods(context: String, namespace: String) -> Result<Vec<PodInfo>, St
     }
     pods.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(pods)
+}
+
+#[tauri::command]
+async fn get_nodes(context: String) -> Result<Vec<NodeInfo>, String> {
+    // 1. Get nodes basic info
+    let output = kubectl_cmd()
+        .args(["--context", &context, "get", "nodes", "-o", "json"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl get nodes failed: {}", err));
+        return Err(err);
+    }
+
+    let node_list: kube::api::ObjectList<Node> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse Nodes JSON: {}", e))?;
+
+    // 2. Get top nodes for metrics
+    let top_output = kubectl_cmd()
+        .args(["--context", &context, "top", "nodes", "--no-headers"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl top nodes: {}", e))?;
+        
+    let mut metrics_map = HashMap::new();
+    if top_output.status.success() {
+        let stdout = String::from_utf8_lossy(&top_output.stdout);
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                // NAME CPU(cores) CPU% MEMORY(bytes) MEMORY%
+                let node_name = parts[0].to_string();
+                let cpu = if parts.len() >= 3 { format!("{} ({})", parts[1], parts[2]) } else { parts[1].to_string() };
+                let mem = if parts.len() >= 5 { format!("{} ({})", parts[3], parts[4]) } else { parts[2].to_string() };
+                metrics_map.insert(node_name, (cpu, mem));
+            }
+        }
+    }
+
+    // 3. Get pods count per node (all namespaces)
+    let pods_output = kubectl_cmd()
+        .args(["--context", &context, "get", "pods", "-A", "-o", "custom-columns=NODE:.spec.nodeName,NS:.metadata.namespace,NAME:.metadata.name", "--no-headers"])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl get pods: {}", e))?;
+        
+    // 4. Get pod metrics (usage)
+    let pod_metrics_output = kubectl_cmd()
+        .args(["--context", &context, "top", "pods", "-A", "--no-headers"])
+        .output();
+    
+    let mut pod_metrics_map = HashMap::new();
+    if let Ok(output) = pod_metrics_output {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                // NAMESPACE NAME CPU MEMORY
+                if parts.len() >= 4 {
+                    let ns = parts[0].to_string();
+                    let name = parts[1].to_string();
+                    let cpu = parts[2].to_string();
+                    let mem = parts[3].to_string();
+                    pod_metrics_map.insert(format!("{}/{}", ns, name), (cpu, mem));
+                }
+            }
+        }
+    }
+
+    let mut pods_per_node: HashMap<String, Vec<NodePodInfo>> = HashMap::new();
+    if pods_output.status.success() {
+        let stdout = String::from_utf8_lossy(&pods_output.stdout);
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                let node_name = parts[0].to_string();
+                let namespace = parts[1].to_string();
+                let name = parts[2].to_string();
+                
+                let (cpu, memory) = pod_metrics_map
+                    .get(&format!("{}/{}", namespace, name))
+                    .cloned()
+                    .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+
+                if node_name != "<none>" {
+                    pods_per_node.entry(node_name).or_insert_with(Vec::new).push(NodePodInfo { namespace, name, cpu, memory });
+                }
+            }
+        }
+    }
+
+    let mut nodes = Vec::new();
+    let now = chrono::Utc::now();
+
+    for node in node_list {
+        let name = node.metadata.name.clone().unwrap_or_default();
+        
+        let status = if let Some(status) = &node.status {
+            let mut is_ready = false;
+            let mut is_scheduling_disabled = false;
+            
+            if let Some(conditions) = &status.conditions {
+                for cond in conditions {
+                    if cond.type_ == "Ready" && cond.status == "True" {
+                        is_ready = true;
+                    }
+                }
+            }
+            if let Some(spec) = &node.spec {
+                if spec.unschedulable.unwrap_or(false) {
+                    is_scheduling_disabled = true;
+                }
+            }
+            
+            if is_ready {
+                if is_scheduling_disabled { "Ready,SchedulingDisabled".to_string() } else { "Ready".to_string() }
+            } else {
+                "NotReady".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        let version = node.status.as_ref()
+            .and_then(|s| s.node_info.as_ref())
+            .map(|ni| ni.kubelet_version.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let age = if let Some(creation_timestamp) = node.metadata.creation_timestamp {
+            let ts_str = creation_timestamp.0.to_string();
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
+                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let minutes = duration.num_minutes() % 60;
+                
+                if days > 0 { format!("{}d", days) }
+                else if hours > 0 { format!("{}h", hours) }
+                else { format!("{}m", minutes) }
+            } else {
+                "Unknown".to_string()
+            }
+        } else {
+            "Unknown".to_string()
+        };
+
+        let (cpu, memory) = metrics_map.get(&name).cloned().unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+        let mut node_pods = pods_per_node.get(&name).cloned().unwrap_or_default();
+        node_pods.sort_by(|a, b| a.namespace.cmp(&b.namespace).then(a.name.cmp(&b.name)));
+        let pods_count = node_pods.len();
+
+        nodes.push(NodeInfo {
+            name,
+            status,
+            version,
+            age,
+            cpu,
+            memory,
+            pods_count,
+            pods: node_pods,
+        });
+    }
+
+    nodes.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(nodes)
 }
 
 #[tauri::command]
@@ -1438,6 +1629,55 @@ async fn get_pod_metrics(
     Ok(PodMetrics { total, containers })
 }
 
+#[tauri::command]
+async fn get_all_pod_metrics(
+    context: String,
+    namespace: String,
+) -> Result<HashMap<String, ContainerMetrics>, String> {
+    let output = kubectl_cmd()
+        .args([
+            "top",
+            "pods",
+            "--context",
+            &context,
+            "-n",
+            &namespace,
+            "--no-headers",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run kubectl top pods: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        log_debug(&format!("kubectl error: {}", err));
+        return Err(err);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+
+    let mut metrics = HashMap::new();
+
+    for line in lines {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+            let pod_name = parts[0].to_string();
+            let cpu_val = parts[1].to_string();
+            let mem_val = parts[2].to_string();
+
+            metrics.insert(
+                pod_name,
+                ContainerMetrics {
+                    cpu: cpu_val,
+                    memory: mem_val,
+                },
+            );
+        }
+    }
+
+    Ok(metrics)
+}
+
 fn get_terminal_script(terminal_app: Option<String>, command: &str) -> String {
     let app = terminal_app.unwrap_or_else(|| "Terminal".to_string()).to_lowercase();
     if app == "iterm" || app == "iterm2" {
@@ -1856,12 +2096,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(cache)
+        .manage(pty::PtyState::new())
         .invoke_handler(tauri::generate_handler![
+            pty::spawn_pty,
+            pty::write_pty,
+            pty::resize_pty,
             get_contexts,
             get_current_context,
             get_namespaces,
             get_pods,
             get_pod_metrics,
+            get_all_pod_metrics,
+            get_nodes,
             open_terminal,
             open_login_terminal,
             open_describe,

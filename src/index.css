@@ -520,7 +520,7 @@ body {
 
 .ui-pod-list-header {
   display: grid;
-  grid-template-columns: 1fr 60px 100px;
+  grid-template-columns: 1fr 70px 70px 60px 100px;
   gap: 16px;
   align-items: center;
   padding: 8px 12px;
@@ -803,13 +803,38 @@ body {
 
 .ui-pod-item {
   display: grid;
-  grid-template-columns: 1fr 60px 100px;
+  grid-template-columns: 1fr 70px 70px 60px 100px;
   gap: 16px;
   align-items: center; /* Back to center for single line items */
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
+  position: relative;
+}
+
+.pod-actions {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  background-color: var(--bg-color-light);
+  backdrop-filter: var(--glass-blur);
+  padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+
+.ui-pod-item:hover .pod-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .ui-pod-labels {
@@ -990,6 +1015,12 @@ body {
   transition: all 0.2s;
   flex: 1;
   min-width: 80px;
+}
+
+.ui-button.ui-button-icon-only {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 4px;
 }
 
 .ui-button:disabled {

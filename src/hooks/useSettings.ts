@@ -1,15 +1,19 @@
 import { useState } from 'react';
 
 export interface AppSettings {
-  terminalApp: 'Terminal' | 'iTerm';
+  terminalApp: 'Terminal' | 'iTerm' | 'Interne';
   showTopActions: boolean;
   themeColor: string;
+  terminalPosition: 'right' | 'bottom';
+  terminalAutoScroll: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  terminalApp: 'Terminal',
+  terminalApp: 'Interne',
   showTopActions: false,
   themeColor: '#FF2D55',
+  terminalPosition: 'bottom',
+  terminalAutoScroll: true,
 };
 
 export function useSettings() {

@@ -4,6 +4,8 @@ import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Activity, RefreshCw, Zap, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { invoke } from '@tauri-apps/api/core';
+import { useListFilter } from '../../hooks/useListFilter';
+import { ListFilterField } from '../ui/ListFilterField';
 
 interface EventListProps {
   context: string;
@@ -14,6 +16,7 @@ export function EventList({ context, namespace }: EventListProps) {
   const { events, loading, error, refresh, autoRefresh, setAutoRefresh } = useKubeEvents(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
 
   const handleClear = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,6 +97,14 @@ export function EventList({ context, namespace }: EventListProps) {
       
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ListFilterField 
+            visible={isFilterVisible} 
+            value={filterText} 
+            onChange={setFilterText} 
+            onClose={closeFilter} 
+            inputRef={inputRef} 
+            placeholder="Filter Events..." 
+          />
           <div className="ui-event-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-event-list-header">
               <span style={{ textAlign: 'center' }}>Type</span>
@@ -103,7 +114,7 @@ export function EventList({ context, namespace }: EventListProps) {
               <span style={{ textAlign: 'right' }}>Age</span>
             </div>
             <div className="ui-event-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {events.map((event, i) => (
+              {events.filter(e => !filterText || e.object.toLowerCase().includes(filterText.toLowerCase()) || e.message.toLowerCase().includes(filterText.toLowerCase()) || e.reason.toLowerCase().includes(filterText.toLowerCase())).map((event, i) => (
                 <div key={i} className="ui-event-item">
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <span className={`ui-event-type type-${event.eventType.toLowerCase()}`}>

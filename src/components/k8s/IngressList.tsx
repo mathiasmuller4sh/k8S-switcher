@@ -3,6 +3,8 @@ import { useKubeIngresses } from '../../hooks/useKubeIngresses';
 import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Globe, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { useListFilter } from '../../hooks/useListFilter';
+import { ListFilterField } from '../ui/ListFilterField';
 
 interface IngressListProps {
   context: string;
@@ -12,6 +14,7 @@ interface IngressListProps {
 export function IngressList({ context, namespace }: IngressListProps) {
   const { ingresses, loading, error, refresh } = useKubeIngresses(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -62,6 +65,14 @@ export function IngressList({ context, namespace }: IngressListProps) {
       
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ListFilterField 
+            visible={isFilterVisible} 
+            value={filterText} 
+            onChange={setFilterText} 
+            onClose={closeFilter} 
+            inputRef={inputRef} 
+            placeholder="Filter Ingresses..." 
+          />
           <div className="ui-ingress-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-ingress-list-header">
               <span>Name</span>
@@ -71,7 +82,7 @@ export function IngressList({ context, namespace }: IngressListProps) {
               <span style={{ textAlign: 'right' }}>Age</span>
             </div>
             <div className="ui-ingress-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {ingresses.map((ingress) => (
+              {ingresses.filter(i => !filterText || i.name.toLowerCase().includes(filterText.toLowerCase()) || i.hosts.toLowerCase().includes(filterText.toLowerCase())).map((ingress) => (
                 <div key={ingress.name} className="ui-ingress-item">
                   <span className="ui-ingress-name" title={ingress.name}>{ingress.name}</span>
                   <span className="ui-ingress-hosts" title={ingress.hosts}>{ingress.hosts}</span>

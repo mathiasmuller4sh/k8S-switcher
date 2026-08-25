@@ -1,19 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { TerminalSquare, ChevronDown, Layers, Cloud } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import { useSettings } from '../../hooks/useSettings';
 import { useActionHistory } from '../../hooks/useActionHistory';
+import { useTerminal } from '../../hooks/useTerminal';
 
 interface CombinedLogsButtonProps {
   context: string;
   namespace: string;
   podName: string;
   labels: Record<string, string>;
+  iconOnly?: boolean;
 }
 
-export function CombinedLogsButton({ context, namespace, podName, labels }: CombinedLogsButtonProps) {
+export function CombinedLogsButton({ context, namespace, podName, labels, iconOnly = false }: CombinedLogsButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [defaultAction, setDefaultAction] = useState(() => {
     return localStorage.getItem('k8switcher-last-log-action') || 'pod';
@@ -21,6 +23,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { addAction } = useActionHistory();
   const { settings } = useSettings();
+  const { openTerminal } = useTerminal();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -77,15 +80,35 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
 
     try {
       if (actionId === 'pod') {
-        await invoke('open_logs', { context, namespace, podName, terminalApp: settings.terminalApp });
+        setIsOpen(false);
+        
+        if (settings.terminalApp === 'Interne') {
+          openTerminal(`Logs: ${podName}`, "kubectl", [
+            "--context", context,
+            "-n", namespace,
+            "logs", "-f", podName
+          ]);
+        } else {
+          await invoke('open_logs', { context, namespace, podName, terminalApp: settings.terminalApp });
+        }
+
         addAction({ type: 'Logs', context, namespace, podName });
       } else if (actionId === 'app' && appInfo) {
-        await invoke('open_logs_by_label', { 
-          context, 
-          namespace, 
-          labelSelector: appInfo.selector,
-          terminalApp: settings.terminalApp 
-        });
+        if (settings.terminalApp === 'Interne') {
+          openTerminal(`Logs: ${appInfo.value}`, "kubectl", [
+            "--context", context,
+            "-n", namespace,
+            "logs", "-l", appInfo.selector,
+            "--max-log-requests=50", "-f", "--tail=100", "--prefix"
+          ]);
+        } else {
+          await invoke('open_logs_by_label', { 
+            context, 
+            namespace, 
+            labelSelector: appInfo.selector,
+            terminalApp: settings.terminalApp 
+          });
+        }
       } else if (actionId === 'gcp') {
         const namespaceQuery = `resource.labels.namespace_name="${namespace}"`;
         let appQuery = '';
@@ -125,34 +148,34 @@ export function CombinedLogsButton({ context, namespace, podName, labels }: Comb
     <div className="ui-dropdown-container" ref={dropdownRef} style={{ position: 'relative', display: 'flex', flex: 1 }}>
       <div style={{ display: 'flex', width: '100%', height: '100%' }}>
         <Button 
-          variant="secondary" 
+          variant={iconOnly ? "ghost" : "secondary"}
           onClick={(e) => { e.stopPropagation(); executeAction(defaultAction); }}
           disabled={!podName}
           icon={getDefaultIcon()}
+          title={getDefaultLabel()}
           style={{ 
             flex: 3, 
             minWidth: 0,
             borderTopRightRadius: 0, 
             borderBottomRightRadius: 0, 
             borderRight: '1px solid rgba(0,0,0,0.3)',
-            paddingLeft: '8px',
-            paddingRight: '8px'
           }}
+          iconOnly={iconOnly}
         >
-          {getDefaultLabel()}
+          {!iconOnly && getDefaultLabel()}
         </Button>
         <Button 
-          variant="secondary" 
+          variant={iconOnly ? "ghost" : "secondary"}
           onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
           disabled={!podName}
+          title="More log options"
           style={{ 
             flex: 1,
             minWidth: 0,
             borderTopLeftRadius: 0, 
             borderBottomLeftRadius: 0, 
-            paddingLeft: '6px',
-            paddingRight: '6px'
           }}
+          iconOnly={iconOnly}
         >
           <ChevronDown size={14} />
         </Button>

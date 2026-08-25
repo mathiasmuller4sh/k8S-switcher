@@ -17,6 +17,10 @@ export interface Pod {
   ports: number[];
   containers: ContainerResources[];
   labels: Record<string, string>;
+  metrics?: {
+    cpu: string;
+    memory: string;
+  };
 }
 
 export function useKubePods(context: string, namespace: string) {
@@ -36,6 +40,21 @@ export function useKubePods(context: string, namespace: string) {
     setError(null);
     try {
       const result = await invoke<Pod[]>('get_pods', { context, namespace });
+      
+      // Fetch metrics concurrently but don't fail if they error out
+      try {
+        const metrics = await invoke<Record<string, { cpu: string; memory: string }>>('get_all_pod_metrics', { context, namespace });
+        if (metrics) {
+          result.forEach(pod => {
+            if (metrics[pod.name]) {
+              pod.metrics = metrics[pod.name];
+            }
+          });
+        }
+      } catch (metricsErr) {
+        console.warn('Failed to fetch pod metrics', metricsErr);
+      }
+
       setPods(result);
     } catch (err: any) {
       console.error('Failed to fetch pods', err);

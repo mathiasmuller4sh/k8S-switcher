@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettings } from "./hooks/useSettings";
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { useTerminal } from './hooks/useTerminal';
 import { UnifiedWidget } from "./components/ui/UnifiedWidget";
 import { PodList } from "./components/k8s/PodList";
 import { PvcList } from "./components/k8s/PvcList";
@@ -12,14 +13,13 @@ import { SecretList } from "./components/k8s/SecretList";
 import { WorkloadList } from "./components/k8s/WorkloadList";
 import { ArgoCDPanel } from "./components/k8s/ArgoCDPanel";
 import { Pod } from "./hooks/useKubePods";
-import { ActionPanel } from "./components/actions/ActionPanel";
-import { PodResourcePanel } from "./components/k8s/PodResourcePanel";
 import { K8sLogo } from "./components/ui/K8sLogo";
 import { Settings, Search } from 'lucide-react';
 import { SettingsModal } from './components/ui/SettingsModal';
 import { GlobalSearchModal } from './components/ui/GlobalSearchModal';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
 import { DownloadCloud, RefreshCcw, Check } from 'lucide-react';
+import { CaptiveTerminalPanel } from './components/ui/CaptiveTerminalPanel';
 import "./index.css";
 
 interface CurrentContextInfo {
@@ -35,6 +35,36 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const { settings } = useSettings();
+  const { isPanelOpen } = useTerminal();
+  const prevIsPanelOpen = useRef(isPanelOpen);
+
+  useEffect(() => {
+    if (prevIsPanelOpen.current === isPanelOpen) return;
+    
+    const adjustWindowSize = async () => {
+      try {
+        const win = getCurrentWindow();
+        const size = await win.innerSize();
+        const factor = await win.scaleFactor();
+        const logicalWidth = size.width / factor;
+        const logicalHeight = size.height / factor;
+        
+        if (isPanelOpen) {
+          // Opening: expand width by 500px to act like a drawer
+          await win.setSize(new LogicalSize(logicalWidth + 500, logicalHeight));
+        } else {
+          // Closing: reduce width by 500px, but keep minimum reasonable width
+          const newWidth = Math.max(800, logicalWidth - 500);
+          await win.setSize(new LogicalSize(newWidth, logicalHeight));
+        }
+      } catch (err) {
+        console.error("Failed to resize window for drawer effect", err);
+      }
+    };
+    
+    adjustWindowSize();
+    prevIsPanelOpen.current = isPanelOpen;
+  }, [isPanelOpen]);
 
   useEffect(() => {
     // Apply custom theme color to document root
@@ -158,8 +188,16 @@ function App() {
           }}
         />
       )}
-      <main className="app-content">
-        <UnifiedWidget 
+      <div className="app-main-layout" style={{ 
+        display: 'flex', 
+        flex: 1, 
+        minHeight: 0, 
+        overflow: 'hidden', 
+        width: '100%',
+        flexDirection: settings.terminalPosition === 'bottom' ? 'column' : 'row'
+      }}>
+        <main className="app-content" style={{ flex: 1, overflow: 'hidden' }}>
+          <UnifiedWidget 
           selectedContext={selectedContext}
           selectedNamespace={selectedNamespace}
           onContextChange={handleContextChange}
@@ -272,28 +310,10 @@ function App() {
             </>
           )}
         </div>
-
-        {isContextSelected && isNamespaceSelected && selectedPod && activeTab === 'pods' && (
-          <>
-            <PodResourcePanel
-              context={selectedContext}
-              namespace={selectedNamespace}
-              podName={selectedPod.name}
-              containers={selectedPod.containers}
-            />
-          </>
-        )}
         </div>
       </main>
-      {isContextSelected && isNamespaceSelected && selectedPod && activeTab === 'pods' && (
-        <ActionPanel
-          context={selectedContext}
-          namespace={selectedNamespace}
-          podName={selectedPod.name}
-          podPorts={selectedPod.ports}
-          podLabels={selectedPod.labels}
-        />
-      )}
+      <CaptiveTerminalPanel />
+      </div>
     </div>
   );
 }

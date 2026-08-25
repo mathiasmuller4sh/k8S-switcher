@@ -6,6 +6,8 @@ import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, ChevronRight, Layers, RefreshCw, Zap, Minus, Plus, RotateCcw, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useActionHistory } from '../../hooks/useActionHistory';
+import { useListFilter } from '../../hooks/useListFilter';
+import { ListFilterField } from '../ui/ListFilterField';
 
 interface WorkloadListProps {
   context: string;
@@ -22,6 +24,7 @@ export function WorkloadList({ context, namespace }: WorkloadListProps) {
   const [scalingState, setScalingState] = useState<Record<string, boolean>>({});
   const [pendingScale, setPendingScale] = useState<Record<string, number>>({});
   const [expandedWorkloads, setExpandedWorkloads] = useState<Record<string, boolean>>({});
+  const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
 
   const handleScaleChange = (kind: string, name: string, currentReady: string, delta: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -137,6 +140,14 @@ export function WorkloadList({ context, namespace }: WorkloadListProps) {
       
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ListFilterField 
+            visible={isFilterVisible} 
+            value={filterText} 
+            onChange={setFilterText} 
+            onClose={closeFilter} 
+            inputRef={inputRef} 
+            placeholder="Filter Workloads..." 
+          />
           <div className="ui-pod-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-pod-list-header" style={{ display: 'flex' }}>
               <span style={{ flex: '1.5' }}>Name</span>
@@ -148,7 +159,7 @@ export function WorkloadList({ context, namespace }: WorkloadListProps) {
               <span style={{ flex: '1', textAlign: 'right' }}>Actions</span>
             </div>
             <div className="ui-pod-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {workloads.map((wl, i) => {
+              {workloads.filter(wl => !filterText || wl.name.toLowerCase().includes(filterText.toLowerCase()) || wl.kind.toLowerCase().includes(filterText.toLowerCase())).map((wl, i) => {
                 const workloadKey = `${wl.kind}-${wl.name}`;
                 const isScaling = scalingState[workloadKey];
                 const isRestarting = scalingState[`${workloadKey}-restart`];

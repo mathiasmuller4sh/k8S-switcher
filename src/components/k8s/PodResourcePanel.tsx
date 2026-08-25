@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Cpu, MemoryStick, RefreshCw, Activity, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { ContainerResources } from '../../hooks/useKubePods';
-import { Card, CardContent, CardHeader } from '../ui/Card';
 
 interface ContainerMetrics {
   cpu: string;
@@ -135,11 +134,11 @@ export function PodResourcePanel({ context, namespace, podName, containers }: Po
   const maxMem = history.length > 0 ? Math.max(...history.map(h => h.memory)) : 0;
 
   return (
-    <Card className={`pod-resource-panel ui-card-compact ${isCollapsed ? 'collapsed' : ''}`}>
-      <CardHeader 
+    <div className={`pod-resource-panel ${isCollapsed ? 'collapsed' : ''}`} style={{ padding: '12px' }}>
+      <div 
         className="pod-resource-header-wrapper"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        style={{ cursor: 'pointer', userSelect: 'none' }}
+        style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', justifyContent: 'space-between', marginBottom: isCollapsed ? 0 : '12px' }}
       >
         <div 
           className="pod-resource-header-left"
@@ -161,10 +160,10 @@ export function PodResourcePanel({ context, namespace, podName, containers }: Po
         >
           <RefreshCw size={12} />
         </button>
-      </CardHeader>
+      </div>
 
       {!isCollapsed && (
-        <CardContent>
+        <div style={{ marginTop: '12px' }}>
           <div className="pod-resource-containers-list">
             {containers.map((c) => {
               const isInit = c.name.startsWith('(init)');
@@ -282,8 +281,8 @@ export function PodResourcePanel({ context, namespace, podName, containers }: Po
               ⚠ metrics indisponibles (metrics-server requis)
             </div>
           )}
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

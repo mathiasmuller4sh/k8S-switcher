@@ -36,9 +36,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <input 
                   type="radio" 
                   name="terminalApp" 
+                  value="Interne" 
+                  checked={settings.terminalApp === 'Interne'}
+                  onChange={(e) => updateSettings({ terminalApp: e.target.value as 'Terminal' | 'iTerm' | 'Interne' })}
+                />
+                Captif Interne
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="terminalApp" 
                   value="Terminal" 
                   checked={settings.terminalApp === 'Terminal'}
-                  onChange={(e) => updateSettings({ terminalApp: e.target.value as 'Terminal' | 'iTerm' })}
+                  onChange={(e) => updateSettings({ terminalApp: e.target.value as 'Terminal' | 'iTerm' | 'Interne' })}
                 />
                 Terminal (macOS Default)
               </label>
@@ -49,11 +60,39 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   name="terminalApp" 
                   value="iTerm" 
                   checked={settings.terminalApp === 'iTerm'}
-                  onChange={(e) => updateSettings({ terminalApp: e.target.value as 'Terminal' | 'iTerm' })}
+                  onChange={(e) => updateSettings({ terminalApp: e.target.value as 'Terminal' | 'iTerm' | 'Interne' })}
                 />
                 iTerm2
               </label>
             </div>
+
+            {settings.terminalApp === 'Interne' && (
+              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
+                <p className="settings-description" style={{ marginBottom: '8px' }}>Position du Terminal Intégré</p>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="terminalPosition" 
+                      value="right" 
+                      checked={settings.terminalPosition === 'right'}
+                      onChange={() => updateSettings({ terminalPosition: 'right' })}
+                    />
+                    Droite
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="terminalPosition" 
+                      value="bottom" 
+                      checked={settings.terminalPosition === 'bottom'}
+                      onChange={() => updateSettings({ terminalPosition: 'bottom' })}
+                    />
+                    Bas
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="settings-section" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>

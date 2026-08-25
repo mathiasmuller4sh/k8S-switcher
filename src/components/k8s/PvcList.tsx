@@ -3,6 +3,8 @@ import { useKubePvcs } from '../../hooks/useKubePvcs';
 import { K8sAuthError } from '../ui/K8sAuthError';
 import { ChevronDown, ChevronUp, Database, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
+import { useListFilter } from '../../hooks/useListFilter';
+import { ListFilterField } from '../ui/ListFilterField';
 
 interface PvcListProps {
   context: string;
@@ -12,6 +14,7 @@ interface PvcListProps {
 export function PvcList({ context, namespace }: PvcListProps) {
   const { pvcs, loading, error, refresh } = useKubePvcs(context, namespace);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -62,6 +65,14 @@ export function PvcList({ context, namespace }: PvcListProps) {
       
       {!isCollapsed && (
         <CardContent style={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ListFilterField 
+            visible={isFilterVisible} 
+            value={filterText} 
+            onChange={setFilterText} 
+            onClose={closeFilter} 
+            inputRef={inputRef} 
+            placeholder="Filter PVCs..." 
+          />
           <div className="ui-pvc-list" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="ui-pvc-list-header">
               <span>Name</span>
@@ -70,7 +81,7 @@ export function PvcList({ context, namespace }: PvcListProps) {
               <span style={{ textAlign: 'right' }}>Storage Class</span>
             </div>
             <div className="ui-pvc-list-content" style={{ flex: 1, overflowY: 'auto' }}>
-              {pvcs.map((pvc) => (
+              {pvcs.filter(pvc => !filterText || pvc.name.toLowerCase().includes(filterText.toLowerCase())).map((pvc) => (
                 <div key={pvc.name} className="ui-pvc-item">
                   <div className="ui-pvc-name-block">
                     <span className="ui-pvc-name" title={pvc.name}>{pvc.name}</span>
