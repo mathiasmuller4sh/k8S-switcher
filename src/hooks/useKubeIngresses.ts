@@ -3,10 +3,13 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface Ingress {
   name: string;
+  resourceType: 'Ingress' | 'VirtualService' | 'HTTPRoute' | string;
   hosts: string;
   address: string;
   ports: string;
   age: string;
+  paths?: string;
+  gateways?: string;
 }
 
 export function useKubeIngresses(context: string, namespace: string) {

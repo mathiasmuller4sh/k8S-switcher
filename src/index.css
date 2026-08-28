@@ -106,6 +106,7 @@ body {
   transition: background-color 0.2s;
   color: var(--text-color);
   font-size: 0.875rem;
+  box-sizing: border-box;
 }
 
 .unified-section:hover {
@@ -617,7 +618,7 @@ body {
 
 .ui-ingress-list-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 60px 60px;
+  grid-template-columns: 1.2fr 1.8fr 1fr 60px 60px;
   gap: 16px;
   align-items: center;
   padding: 8px 12px;
@@ -631,7 +632,7 @@ body {
 
 .ui-ingress-item {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 60px 60px;
+  grid-template-columns: 1.2fr 1.8fr 1fr 60px 60px;
   gap: 16px;
   align-items: center;
   padding: 10px 12px;
@@ -644,11 +645,114 @@ body {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
+.ui-ingress-name-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ui-ingress-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ui-ingress-badge.badge-istio {
+  background-color: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.ui-ingress-badge.badge-ingress {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ui-ingress-badge.badge-httproute {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 .ui-ingress-name {
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ui-ingress-hosts-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ui-ingress-host-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.ui-ingress-host-link {
+  color: var(--primary-color, #60a5fa);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+}
+
+.ui-ingress-host-link:hover {
+  text-decoration: underline;
+  color: #93c5fd;
+}
+
+.ui-ingress-copy-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 3px;
+}
+
+.ui-ingress-host-row:hover .ui-ingress-copy-btn,
+.ui-ingress-item:hover .ui-ingress-copy-btn {
+  opacity: 1;
+}
+
+.ui-ingress-copy-btn:hover {
+  color: var(--text-color);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ui-ingress-path-tag {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background-color: rgba(255, 255, 255, 0.07);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: monospace;
 }
 
 .ui-ingress-hosts, .ui-ingress-address {

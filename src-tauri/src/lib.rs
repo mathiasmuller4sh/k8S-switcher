@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use k8s_openapi::api::core::v1::{Event, PersistentVolumeClaim, Pod, Node};
-use k8s_openapi::api::networking::v1::Ingress;
 use kube::config::Kubeconfig;
 use serde::Serialize;
 use serde_json::Value;
@@ -181,10 +180,13 @@ pub struct PvcInfo {
 #[serde(rename_all = "camelCase")]
 pub struct IngressInfo {
     name: String,
+    resource_type: String,
     hosts: String,
     address: String,
     ports: String,
     age: String,
+    paths: Option<String>,
+    gateways: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -770,97 +772,303 @@ async fn get_pvcs(context: String, namespace: String) -> Result<Vec<PvcInfo>, St
     Ok(pvcs)
 }
 
-#[tauri::command]
-async fn get_ingresses(context: String, namespace: String) -> Result<Vec<IngressInfo>, String> {
+fn fetch_kubectl_resource_json(context: &str, namespace: &str, resource: &str) -> Result<Value, String> {
     let output = kubectl_cmd()
-        .args(["--context", &context, "-n", &namespace, "get", "ingress", "-o", "json"])
+        .args(["--context", context, "-n", namespace, "get", resource, "-o", "json"])
         .output()
-        .map_err(|e| format!("Failed to run kubectl: {}", e))?;
+        .map_err(|e| format!("Failed to run kubectl for {}: {}", resource, e))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        log_debug(&format!("kubectl get ingress failed: {}", err));
+        let lower = err.to_lowercase();
+        if lower.contains("the server doesn't have a resource type")
+            || lower.contains("no resources found")
+            || lower.contains("notfound")
+            || lower.contains("not found")
+            || lower.contains("no matches for kind")
+            || lower.contains("unknown command") {
+            log_debug(&format!("Resource type {} not supported or empty: {}", resource, err));
+            return Ok(serde_json::json!({ "items": [] }));
+        }
+        log_debug(&format!("kubectl get {} failed: {}", resource, err));
         return Err(err);
     }
 
-    let ingress_list: kube::api::ObjectList<Ingress> = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Failed to parse Ingress JSON: {}", e))?;
+    let json_str = String::from_utf8_lossy(&output.stdout);
+    let v: Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse {} JSON: {}", resource, e))?;
+    Ok(v)
+}
 
-    let mut ingresses = Vec::new();
-    let now = chrono::Utc::now();
+fn format_k8s_age_from_ts(ts_opt: Option<&str>, now: &chrono::DateTime<chrono::Utc>) -> String {
+    if let Some(ts_str) = ts_opt {
+        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(ts_str) {
+            let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
+            let days = duration.num_days();
+            let hours = duration.num_hours() % 24;
+            let minutes = duration.num_minutes() % 60;
+            let seconds = duration.num_seconds() % 60;
 
-    for ingress in ingress_list {
-        let name = ingress.metadata.name.clone().unwrap_or_default();
-        
-        let mut hosts = Vec::new();
-        if let Some(spec) = &ingress.spec {
-            if let Some(rules) = &spec.rules {
-                for rule in rules {
-                    if let Some(h) = &rule.host {
-                        hosts.push(h.clone());
-                    } else {
-                        hosts.push("*".to_string());
-                    }
-                }
-            }
-        }
-        let hosts_str = if hosts.is_empty() { "*".to_string() } else { hosts.join(", ") };
-
-        let mut addresses = Vec::new();
-        if let Some(status) = &ingress.status {
-            if let Some(lb) = &status.load_balancer {
-                if let Some(ingresses) = &lb.ingress {
-                    for ing in ingresses {
-                        if let Some(ip) = &ing.ip {
-                            addresses.push(ip.clone());
-                        }
-                        if let Some(hostname) = &ing.hostname {
-                            addresses.push(hostname.clone());
-                        }
-                    }
-                }
-            }
-        }
-        let address_str = addresses.join(", ");
-
-        let ports = "80, 443".to_string(); // Simplified for standard ingresses
-
-        let age = if let Some(creation_timestamp) = ingress.metadata.creation_timestamp {
-            let ts_str = creation_timestamp.0.to_string();
-            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&ts_str) {
-                let duration = now.signed_duration_since(dt.with_timezone(&chrono::Utc));
-                let days = duration.num_days();
-                let hours = duration.num_hours() % 24;
-                let minutes = duration.num_minutes() % 60;
-                let seconds = duration.num_seconds() % 60;
-
-                if days > 0 {
-                    format!("{}d", days)
-                } else if hours > 0 {
-                    format!("{}h", hours)
-                } else if minutes > 0 {
-                    format!("{}m", minutes)
-                } else {
-                    format!("{}s", seconds)
-                }
+            if days > 0 {
+                format!("{}d", days)
+            } else if hours > 0 {
+                format!("{}h", hours)
+            } else if minutes > 0 {
+                format!("{}m", minutes)
             } else {
-                "Unknown".to_string()
+                format!("{}s", seconds)
             }
         } else {
             "Unknown".to_string()
-        };
+        }
+    } else {
+        "Unknown".to_string()
+    }
+}
 
-        ingresses.push(IngressInfo {
-            name,
-            hosts: hosts_str,
-            address: address_str,
-            ports,
-            age,
-        });
+#[tauri::command]
+async fn get_ingresses(context: String, namespace: String) -> Result<Vec<IngressInfo>, String> {
+    let now = chrono::Utc::now();
+    let mut all_items: Vec<IngressInfo> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+
+    // 1. Standard Ingresses
+    match fetch_kubectl_resource_json(&context, &namespace, "ingress") {
+        Ok(v) => {
+            if let Some(items) = v.get("items").and_then(|i| i.as_array()) {
+                for item in items {
+                    let name = item.get("metadata").and_then(|m| m.get("name")).and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+                    let creation_ts = item.get("metadata").and_then(|m| m.get("creationTimestamp")).and_then(|t| t.as_str());
+                    let age = format_k8s_age_from_ts(creation_ts, &now);
+
+                    let mut hosts = Vec::new();
+                    let mut paths = Vec::new();
+                    if let Some(spec) = item.get("spec") {
+                        if let Some(rules) = spec.get("rules").and_then(|r| r.as_array()) {
+                            for rule in rules {
+                                if let Some(h) = rule.get("host").and_then(|h| h.as_str()) {
+                                    if !hosts.contains(&h.to_string()) {
+                                        hosts.push(h.to_string());
+                                    }
+                                }
+                                if let Some(http) = rule.get("http") {
+                                    if let Some(path_items) = http.get("paths").and_then(|p| p.as_array()) {
+                                        for p_item in path_items {
+                                            if let Some(p) = p_item.get("path").and_then(|p| p.as_str()) {
+                                                if !paths.contains(&p.to_string()) {
+                                                    paths.push(p.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let hosts_str = if hosts.is_empty() { "*".to_string() } else { hosts.join(", ") };
+                    let paths_str = if paths.is_empty() { None } else { Some(paths.join(", ")) };
+
+                    let mut addresses = Vec::new();
+                    if let Some(status) = item.get("status") {
+                        if let Some(lb) = status.get("loadBalancer") {
+                            if let Some(ing_list) = lb.get("ingress").and_then(|i| i.as_array()) {
+                                for ing in ing_list {
+                                    if let Some(ip) = ing.get("ip").and_then(|ip| ip.as_str()) {
+                                        addresses.push(ip.to_string());
+                                    }
+                                    if let Some(hn) = ing.get("hostname").and_then(|h| h.as_str()) {
+                                        addresses.push(hn.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let address_str = if addresses.is_empty() { "-".to_string() } else { addresses.join(", ") };
+
+                    all_items.push(IngressInfo {
+                        name,
+                        resource_type: "Ingress".to_string(),
+                        hosts: hosts_str,
+                        address: address_str,
+                        ports: "80, 443".to_string(),
+                        age,
+                        paths: paths_str,
+                        gateways: None,
+                    });
+                }
+            }
+        }
+        Err(e) => {
+            errors.push(e);
+        }
     }
 
-    ingresses.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(ingresses)
+    // 2. Istio VirtualServices
+    match fetch_kubectl_resource_json(&context, &namespace, "virtualservices") {
+        Ok(v) => {
+            if let Some(items) = v.get("items").and_then(|i| i.as_array()) {
+                for item in items {
+                    let name = item.get("metadata").and_then(|m| m.get("name")).and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+                    let creation_ts = item.get("metadata").and_then(|m| m.get("creationTimestamp")).and_then(|t| t.as_str());
+                    let age = format_k8s_age_from_ts(creation_ts, &now);
+
+                    let mut hosts = Vec::new();
+                    let mut gateways = Vec::new();
+                    let mut paths = Vec::new();
+                    let mut ports = Vec::new();
+
+                    if let Some(spec) = item.get("spec") {
+                        if let Some(h_arr) = spec.get("hosts").and_then(|h| h.as_array()) {
+                            for h in h_arr {
+                                if let Some(hs) = h.as_str() {
+                                    if !hosts.contains(&hs.to_string()) {
+                                        hosts.push(hs.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(gw_arr) = spec.get("gateways").and_then(|g| g.as_array()) {
+                            for gw in gw_arr {
+                                if let Some(gws) = gw.as_str() {
+                                    if !gateways.contains(&gws.to_string()) {
+                                        gateways.push(gws.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(http_arr) = spec.get("http").and_then(|h| h.as_array()) {
+                            for http in http_arr {
+                                if let Some(matches) = http.get("match").and_then(|m| m.as_array()) {
+                                    for m in matches {
+                                        if let Some(uri) = m.get("uri") {
+                                            if let Some(p) = uri.get("prefix").or_else(|| uri.get("exact")).or_else(|| uri.get("regex")).and_then(|p| p.as_str()) {
+                                                if !paths.contains(&p.to_string()) {
+                                                    paths.push(p.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(routes) = http.get("route").and_then(|r| r.as_array()) {
+                                    for route in routes {
+                                        if let Some(dest) = route.get("destination") {
+                                            if let Some(port_num) = dest.get("port").and_then(|p| p.get("number")).and_then(|n| n.as_i64()) {
+                                                let p_str = port_num.to_string();
+                                                if !ports.contains(&p_str) {
+                                                    ports.push(p_str);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let hosts_str = if hosts.is_empty() { "*".to_string() } else { hosts.join(", ") };
+                    let gateways_str = if gateways.is_empty() { None } else { Some(gateways.join(", ")) };
+                    let address_str = gateways.join(", ");
+                    let address_val = if address_str.is_empty() { "-".to_string() } else { address_str };
+                    let ports_str = if ports.is_empty() { "80, 443".to_string() } else { ports.join(", ") };
+                    let paths_str = if paths.is_empty() { None } else { Some(paths.join(", ")) };
+
+                    all_items.push(IngressInfo {
+                        name,
+                        resource_type: "VirtualService".to_string(),
+                        hosts: hosts_str,
+                        address: address_val,
+                        ports: ports_str,
+                        age,
+                        paths: paths_str,
+                        gateways: gateways_str,
+                    });
+                }
+            }
+        }
+        Err(e) => {
+            errors.push(e);
+        }
+    }
+
+    // 3. Gateway API HTTPRoutes (if available)
+    match fetch_kubectl_resource_json(&context, &namespace, "httproutes") {
+        Ok(v) => {
+            if let Some(items) = v.get("items").and_then(|i| i.as_array()) {
+                for item in items {
+                    let name = item.get("metadata").and_then(|m| m.get("name")).and_then(|n| n.as_str()).unwrap_or("Unknown").to_string();
+                    let creation_ts = item.get("metadata").and_then(|m| m.get("creationTimestamp")).and_then(|t| t.as_str());
+                    let age = format_k8s_age_from_ts(creation_ts, &now);
+
+                    let mut hosts = Vec::new();
+                    let mut gateways = Vec::new();
+                    let mut paths = Vec::new();
+
+                    if let Some(spec) = item.get("spec") {
+                        if let Some(h_arr) = spec.get("hostnames").and_then(|h| h.as_array()) {
+                            for h in h_arr {
+                                if let Some(hs) = h.as_str() {
+                                    if !hosts.contains(&hs.to_string()) {
+                                        hosts.push(hs.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(p_refs) = spec.get("parentRefs").and_then(|p| p.as_array()) {
+                            for pr in p_refs {
+                                if let Some(gw_name) = pr.get("name").and_then(|n| n.as_str()) {
+                                    if !gateways.contains(&gw_name.to_string()) {
+                                        gateways.push(gw_name.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(rules) = spec.get("rules").and_then(|r| r.as_array()) {
+                            for rule in rules {
+                                if let Some(matches) = rule.get("matches").and_then(|m| m.as_array()) {
+                                    for m in matches {
+                                        if let Some(path_obj) = m.get("path") {
+                                            if let Some(val) = path_obj.get("value").and_then(|v| v.as_str()) {
+                                                if !paths.contains(&val.to_string()) {
+                                                    paths.push(val.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let hosts_str = if hosts.is_empty() { "*".to_string() } else { hosts.join(", ") };
+                    let gateways_str = if gateways.is_empty() { None } else { Some(gateways.join(", ")) };
+                    let address_str = gateways.join(", ");
+                    let address_val = if address_str.is_empty() { "-".to_string() } else { address_str };
+                    let paths_str = if paths.is_empty() { None } else { Some(paths.join(", ")) };
+
+                    all_items.push(IngressInfo {
+                        name,
+                        resource_type: "HTTPRoute".to_string(),
+                        hosts: hosts_str,
+                        address: address_val,
+                        ports: "80, 443".to_string(),
+                        age,
+                        paths: paths_str,
+                        gateways: gateways_str,
+                    });
+                }
+            }
+        }
+        Err(e) => {
+            errors.push(e);
+        }
+    }
+
+    if all_items.is_empty() && errors.len() == 3 {
+        return Err(errors[0].clone());
+    }
+
+    all_items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(all_items)
 }
 
 #[tauri::command]

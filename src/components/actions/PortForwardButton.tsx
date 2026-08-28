@@ -119,6 +119,10 @@ export function PortForwardButton({ context, namespace, podName, podPorts, iconO
                 onChange={e => setLocalPort(e.target.value)}
                 placeholder="Local"
                 title="Local Port"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck="false"
               />
               <span className="ui-port-separator">:</span>
               <input 
@@ -128,6 +132,10 @@ export function PortForwardButton({ context, namespace, podName, podPorts, iconO
                 onChange={e => setPodPort(e.target.value)}
                 placeholder="Pod"
                 title="Pod Port"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck="false"
               />
             </div>
             <Button 
@@ -154,6 +162,10 @@ export function PortForwardButton({ context, namespace, podName, podPorts, iconO
           onChange={e => setLocalPort(e.target.value)}
           placeholder="Local"
           title="Local Port"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck="false"
         />
         <span className="ui-port-separator">:</span>
         <input 
@@ -163,6 +175,10 @@ export function PortForwardButton({ context, namespace, podName, podPorts, iconO
           onChange={e => setPodPort(e.target.value)}
           placeholder="Pod"
           title="Pod Port"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck="false"
         />
       </div>
       <Button 

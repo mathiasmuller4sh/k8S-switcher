@@ -30,6 +30,10 @@ export function ListFilterField({ value, onChange, onClose, inputRef, placeholde
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck="false"
         style={{
           background: 'transparent',
           border: 'none',

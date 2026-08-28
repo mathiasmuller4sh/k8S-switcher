@@ -136,6 +136,7 @@ export function UnifiedWidget({
         <div style={{ position: 'relative' }}>
           <div 
             className="unified-section" 
+            style={{ width: '260px' }}
             onClick={() => {
               if (activeDropdown !== 'context') setActiveDropdown('context');
             }}
@@ -148,6 +149,10 @@ export function UnifiedWidget({
                 value={contextSearch}
                 onChange={(e) => setContextSearch(e.target.value)}
                 placeholder="Filter contexts..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck="false"
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -155,17 +160,24 @@ export function UnifiedWidget({
                   outline: 'none',
                   fontFamily: 'inherit',
                   fontSize: 'inherit',
-                  width: '240px'
+                  width: '100%',
+                  flex: 1,
+                  minWidth: 0,
+                  padding: 0
                 }}
               />
             ) : (
-              <span style={{ 
-                maxWidth: '350px', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap',
-                display: 'inline-block'
-              }}>
+              <span 
+                title={selectedContext}
+                style={{ 
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  whiteSpace: 'nowrap',
+                  display: 'block'
+                }}
+              >
                 {selectedContext || "Select Cluster..."}
               </span>
             )}
@@ -212,12 +224,16 @@ export function UnifiedWidget({
         <div style={{ position: 'relative' }}>
           <div 
             className="unified-section" 
+            style={{ 
+              width: '210px',
+              opacity: selectedContext ? 1 : 0.5, 
+              cursor: selectedContext ? 'pointer' : 'not-allowed' 
+            }}
             onClick={() => {
               if (selectedContext && activeDropdown !== 'namespace') {
                 setActiveDropdown('namespace');
               }
             }}
-            style={{ opacity: selectedContext ? 1 : 0.5, cursor: selectedContext ? 'pointer' : 'not-allowed' }}
           >
             <Folder size={16} style={{ flexShrink: 0 }} />
             {activeDropdown === 'namespace' ? (
@@ -227,6 +243,10 @@ export function UnifiedWidget({
                 value={namespaceSearch}
                 onChange={(e) => setNamespaceSearch(e.target.value)}
                 placeholder="Filter namespaces..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck="false"
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -234,17 +254,24 @@ export function UnifiedWidget({
                   outline: 'none',
                   fontFamily: 'inherit',
                   fontSize: 'inherit',
-                  width: '240px'
+                  width: '100%',
+                  flex: 1,
+                  minWidth: 0,
+                  padding: 0
                 }}
               />
             ) : (
-              <span style={{ 
-                maxWidth: '350px', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap',
-                display: 'inline-block'
-              }}>
+              <span 
+                title={selectedNamespace}
+                style={{ 
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  whiteSpace: 'nowrap',
+                  display: 'block'
+                }}
+              >
                 {selectedNamespace || "Select Namespace..."}
               </span>
             )}

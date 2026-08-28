@@ -249,7 +249,7 @@ function App() {
                   className={`ui-tab ${activeTab === 'ingresses' ? 'active' : ''}`}
                   onClick={() => setActiveTab('ingresses')}
                 >
-                  Ingresses
+                  Ingresses / Istio
                 </button>
                 <button 
                   className={`ui-tab ${activeTab === 'argocd' ? 'active' : ''}`}

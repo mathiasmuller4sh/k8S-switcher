@@ -206,6 +206,10 @@ ${JSON.stringify((data.events as any[]).slice(0, 20).map(e => ({ type: e.eventTy
                   onChange={e => setOllamaUrl(e.target.value)} 
                   placeholder="http://localhost:11434"
                   className="ui-port-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck="false"
                   style={{ textAlign: 'left', border: '1px solid var(--border-color)', padding: '6px' }}
                 />
                 <small style={{color: 'var(--text-muted)', fontSize: '0.7rem'}}>Ensure Ollama is running and OLLAMA_ORIGINS="*" is set for CORS.</small>
