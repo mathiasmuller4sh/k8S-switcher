@@ -610,6 +610,40 @@ body {
   font-family: monospace;
 }
 
+/* Secret Details */
+.ui-secret-entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-secret-copy-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+.ui-secret-entry:hover .ui-secret-copy-btn,
+.ui-secret-copy-btn.copied {
+  opacity: 1;
+}
+
+.ui-secret-copy-btn:hover {
+  color: var(--text-color);
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 /* Ingress List */
 .ui-ingress-list {
   display: flex;
@@ -933,10 +967,22 @@ body {
   border-radius: var(--radius);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
-  z-index: 10;
+  z-index: 30;
 }
 
-.ui-pod-item:hover .pod-actions {
+.ui-pod-item-container:hover,
+.ui-pod-item-container:focus-within {
+  position: relative;
+  z-index: 20;
+}
+
+.ui-pod-item:hover,
+.ui-pod-item:focus-within {
+  z-index: 20;
+}
+
+.ui-pod-item:hover .pod-actions,
+.ui-pod-item:focus-within .pod-actions {
   opacity: 1;
   pointer-events: auto;
 }

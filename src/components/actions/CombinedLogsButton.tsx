@@ -184,9 +184,11 @@ export function CombinedLogsButton({ context, namespace, podName, labels, iconOn
       {isOpen && (
         <div style={{
           position: 'absolute',
-          bottom: '100%',
+          bottom: iconOnly ? undefined : '100%',
+          top: iconOnly ? '100%' : undefined,
           right: 0,
-          marginBottom: '4px',
+          marginBottom: iconOnly ? undefined : '4px',
+          marginTop: iconOnly ? '4px' : undefined,
           backgroundColor: '#1e1e2e',
           border: '1px solid #313244',
           borderRadius: '6px',
@@ -194,7 +196,7 @@ export function CombinedLogsButton({ context, namespace, podName, labels, iconOn
           display: 'flex',
           flexDirection: 'column',
           gap: '2px',
-          zIndex: 50,
+          zIndex: 100,
           minWidth: '150px',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
         }}>

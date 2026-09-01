@@ -3958,7 +3958,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-app"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "chrono",
  "k8s-openapi",

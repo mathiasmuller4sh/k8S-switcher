@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useKubeSecrets } from '../../hooks/useKubeSecrets';
 import { K8sAuthError } from '../ui/K8sAuthError';
-import { ChevronDown, ChevronUp, Key, RefreshCw, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, ChevronUp, Key, RefreshCw, ExternalLink, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
@@ -18,7 +18,18 @@ export function SecretList({ context, namespace }: SecretListProps) {
   const [expandedSecret, setExpandedSecret] = useState<string | null>(null);
   const [secretData, setSecretData] = useState<Record<string, string> | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { filterText, setFilterText, isFilterVisible, closeFilter, inputRef } = useListFilter();
+
+  const handleCopy = (key: string, val: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const cleanVal = val.trim();
+    navigator.clipboard.writeText(cleanVal);
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 2000);
+  };
 
   if (!context || !namespace) {
     return <div className="ui-empty-state">Select a context and namespace</div>;
@@ -197,8 +208,27 @@ export function SecretList({ context, namespace }: SecretListProps) {
                       ) : secretData ? (
                         Object.entries(secretData).length > 0 ? (
                           Object.entries(secretData).map(([key, value]) => (
-                            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-color)' }}>{key}</div>
+                            <div key={key} className="ui-secret-entry">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-color)' }}>{key}</span>
+                                <button
+                                  className={`ui-secret-copy-btn ${copiedKey === key ? 'copied' : ''}`}
+                                  onClick={(e) => handleCopy(key, value, e)}
+                                  title={copiedKey === key ? "Copied!" : `Copy ${key}`}
+                                >
+                                  {copiedKey === key ? (
+                                    <>
+                                      <Check size={12} style={{ color: '#34d399' }} />
+                                      <span style={{ color: '#34d399' }}>Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={12} />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                               <pre style={{
                                 margin: 0,
                                 padding: '8px 12px',
